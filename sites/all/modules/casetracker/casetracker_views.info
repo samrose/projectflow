@@ -1,0 +1,5 @@
+; $Id: casetracker_views.info,v 1.1 2007/01/08 16:58:47 morbus Exp $
+name = CT Views
+package = Case Tracker
+dependencies = casetracker views
+description = Enables Views integration for Case Tracker.

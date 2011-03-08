@@ -1,0 +1,4 @@
+; $ID$
+name = Comment upload
+description = Allows users to attach files to comments.
+dependencies = upload comment

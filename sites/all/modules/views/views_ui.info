@@ -1,0 +1,6 @@
+; $Id: views_ui.info,v 1.4.2.3 2007/01/19 00:22:46 merlinofchaos Exp $
+name = Views UI
+description = The Views UI module allows you to create and edit views.
+version = "$Name: DRUPAL-5--1-6-BETA5 $"
+package = Views
+dependencies = views

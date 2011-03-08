@@ -1,0 +1,5 @@
+; $Id: messaging_simple.info,v 1.2 2008/02/13 22:21:56 jareyero Exp $
+name = Simple messaging
+description = Sending Method: Show messages on user's page
+package = "Messaging"
+dependencies = messaging

@@ -1,0 +1,141 @@
+// $Id: DEVELOPER.txt,v 1.1.2.1 2008/04/17 15:00:11 jareyero Exp $
+
+API.txt - Drupal Module - Messaging
+======================================
+
+This is the developer's documentation for the Messaging Framework
+
+Overview of message sending
+---------------------------
+The messaging module just plays a broker role between the message producing modules, the ones generating the messages, like
+notifications and message processor modules, the ones actually sending messages to the user. 
+This framework implements both 'push' and 'pull' models for message sending. 
+* Push: One module will produce the message and it will be sent using a messaging api function.
+  This is typically the model used for mail and SMS messages.
+  @see messaging_message_send_user()    
+* Pull: One module will peek the messages queued for a user and will fetch a full array of messages
+  to be sent. This may be used for IM methods on which messages will be queued waiting for the user to be connected.
+  @see messaging_pull_pending()
+  
+Though the pull method could have been implemented using the model with intermediate buffering, we wanted users to
+get notifications in real time, as soon as they are produced when he's connected through IM not having to wait until
+next cron run. Thus message providers supporting the pull method will need to implement a way for the messaging module
+to look directly at their message queue.
+
+For performance / scalabilty considerations, some modules producing or delivering messages may need queueing mechanisms.
+However this module doesn't implement queueing, thus each module using this framework will need to handle its own message
+queueing and cron processing.
+
+Message composition
+-------------------
+This framework aims to provide message sending capabilities to modules independently of the delivery channel eventually
+used. However, the message composition and formatting may depend on the method used for delivery:
+- Some messaging methods like SMS may impose restrictions on the length of the message thus message texts may need to be
+considerably shorter than for others like e-mail.
+- The final formatting of the messages may depend also on the channel used so messages are passed as structured data till
+the final sending. Though the messaging framework provides some utility functions for message rendering, it is the work of
+each specific messaging method module to give final formatting to the message using these functions or not.
+  - Example 1: the message body is an array with 'header', 'content' and 'footer' so for text e-mail messages
+    a '--' may be inserted for separating the message footer.
+  - Example 2: the message may need to be formatted using plain text or HTML
+
+For this custom message composition the messaging framework provides a mechanism for configuring different message parts
+for each sending method and it relies on 'tokens' module for token replacement and text substitution. The general method
+for message composition for modules producing messages (push model) is:
+1. Find out in advance which sending method the user has selected for each specific type of message.
+  I.e. the notifications module allows setting the messaging delivery method for each independent subscription
+  so notifications are queued for each sending method.
+2. Fetch different message part templates depending on the sending method.
+3. Run these templates through token replacement providing the right objects as parameters
+4. Invoke the messaging module's sending API
+
+@see messaging_message_part()
+@see messaging_message_render()
+
+For formatting and security issues, the Input Filters are applied to the message content before the final
+message composition. The messaging framework allows to configure a different filter for each method.
+
+@see messaging_message_send_user()
+
+Developing plug-in modules
+---------------------------
+To develop a new messaging method plug-in for this framework you need:
+- To provide method information through the hook_messaging()
+- To implement a callback function for message sending
+
+For a module that uses the messaging framework for message sending you need:
+- To provide information about the message texts that will be used
+- To provide information about the tokens used in these texts
+- To call the API sending function for push delivery
+- To implement the messaging hook for pull delivery
+
+
+The messaging hook
+--------------------
+This is a generic hook that will be used by the messaging framework to gather information
+about sending methods and messages.
+
+hook_messaging($op, $arg1, $arg2, $arg3, $arg4)
+
+Depending on $op, which is the operation to perform, these are the parameters and return values:
+
+- 'send methods', Provides information about sending methods
+  Returns an array of the form:
+  $info['method name'] => array(
+     'name' => String. User readable name. Example: t('Mail'),
+     'send' => Callback function for message sending (push),
+     'type' => Type of messaging method. Combination of MESSAGING_TYPE_PUSH, MESSAGING_TYPE_PULL   
+   );
+
+- 'message groups', Provides information about message formats
+  Returns an array of the form:
+      $info['group-name'] = array(
+        'module' => Module low level name. Example: 'notifications,
+        'name' => Group name. Example: t('Subscriptions event'),
+        'tokens' => Array of token groups used for these messages. Example: array('global', 'subscription', 'user', 'comment'),
+      );
+
+- 'message keys', Available message keys for each group, these will be the message parts
+  More parameters:
+    $group = $arg1 = Group name
+  Returns an array of arrays with the form:
+    array(
+    	'key1' => User readable name of these message part
+    	'key2' => "
+    	....
+   );    
+  Example, for event notifications
+      return array(
+        'subject' => t('Subject for event notifications'),
+        'header' => t('Body header for event notifications'),
+        'main' => t('Body for event notifications'),
+        'footer' => t('Body footer for event notifications'),
+      );
+
+- 'messages', Provides default message parts
+  More parameters:
+    $group = $arg1 = Group name
+  Returns an array with default values for each part of this message group.
+  Each part may be a message text or an array of message paragraphs.
+  Example:
+    array(
+      'subject' => t('Event notification for [user] from [site-name]'),
+      'header' => t("Greetings [user],"),
+      'main' => t("A item to which you are subscribed has been updated"),
+      'footer' => array(
+          t('This is an automatic message from [site-name]'),
+          t('To manage your subscriptions, browse to [subscriptions-manage]'),
+          t('You can unsubscribe at [unsubscribe-url]'),
+    )
+
+- 'pull', Implements message pulling from queued messages
+  More parameters: 
+  	$method = Sending method
+  	$users = array of user ids
+  	$limit = Limit for the number of messages, zero for no limit
+  	$delete = Boolean. Whether to delete the retrieved messages or not. Defaults to TRUE.
+  Returns an array of messages. Each message will be in turn an array with these elements
+  - 'to', destination uid
+  - 'from', originating uid
+  - 'subject', message subject to be rendered
+  - 'body', message body to be rendered

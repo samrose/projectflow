@@ -1,0 +1,322 @@
+<?php
+// $Id: casetracker_views.module,v 1.9 2007/11/12 14:50:22 zero2one Exp $
+
+/**
+ * @file
+ * Enables Views integration for Case Tracker.
+ */
+
+/**
+ *  Implementation of hook_views_table().
+ */
+function casetracker_views_tables() {
+  $tables['casetracker_case'] = array(
+    'name'           => 'casetracker_case',
+
+    'join' => array(
+      'left' => array(
+        'table'      => 'node',
+        'field'      => 'vid',
+      ),
+      'right' => array(
+        'field'      => 'vid',
+        'type'       => 'inner',
+      ),
+    ),
+
+    'fields' => array(
+      'pid' => array(
+        'handler'    => 'casetracker_views_project_name',
+        'help'       => t('Display the name of the Case Tracker project.'),
+        'name'       => t('Case Tracker: Project'),
+        'sortable'   => TRUE,
+      ),
+      'case_number' => array(
+        'help'       => t('Display the number of the Case Tracker case.'),
+        'name'       => t('Case Tracker: Case Number'),
+        'sortable'   => TRUE,
+      ),
+      'assign_to' => array(
+        'handler'    => 'casetracker_views_user_name',
+        'help'       => t('Display the user name the case has been assigned to.'),
+        'name'       => t('Case Tracker: Assigned To'),
+        'sortable'   => TRUE,
+      ),
+      'case_priority_id' => array(
+        'handler'    => 'casetracker_views_priority_name',
+        'help'       => t('Display the priority state of the case.'),
+        'name'       => t('Case Tracker: Case Priority'),
+        'sortable'   => TRUE,
+        ),
+      'case_status_id' => array(
+        'handler'    => 'casetracker_views_status_name',
+        'help'       => t('Display the status state of the case.'),
+        'name'       => t('Case Tracker: Case Status'),
+        'sortable'   => TRUE,
+      ),
+      'case_type_id' => array(
+        'handler'    => 'casetracker_views_type_name',
+        'help'       => t('Display the type state of the case.'),
+        'name'       => t('Case Tracker: Case Type'),
+        'sortable'   => TRUE,
+      )
+    ),
+
+    'sorts' => array(
+      'case_number' => array(
+        'help'       => t('Sort by Case Tracker case number.'),
+        'name'       => t('Case Tracker: Case Number'),
+        'sortable'   => TRUE,
+      ),
+      'case_status_id' => array(
+        'help'       => t('Sort by Case Tracker status state.'),
+        'name'       => t('Case Tracker: Case Status'),
+        'sortable'   => TRUE,
+      ),
+    ),
+
+    'filters' => array(
+      'assign_to' => array(
+        'help'       => t('Filter Case Tracker cases by the assigned user.'),
+        'list'       => 'casetracker_views_user_options',
+        'name'       => t('Case Tracker: Assigned To'),
+        'operator'   => views_handler_operator_andor(),
+        'value-type' => 'array',
+      ),
+      'case_priority_id' => array(
+        'help'       => t('Filter Case Tracker cases by its priority state.'),
+        'list'       => 'casetracker_views_priority_options',
+        'name'       => t('Case Tracker: Case Priority'),
+        'operator'   => views_handler_operator_andor(),
+        'value-type' => 'array',
+      ),
+      'case_status_id' => array(
+        'help'       => t('Filter Case Tracker cases by its status state.'),
+        'list'       => 'casetracker_views_status_options',
+        'name'       => t('Case Tracker: Case Status'),
+        'operator'   => views_handler_operator_andor(),
+        'value-type' => 'array',
+      ),
+      'case_type_id' => array(
+        'help'       => t('Filter Case Tracker cases by its type state.'),
+        'list'       => 'casetracker_views_type_options',
+        'name'       => t('Case Tracker: Case Type'),
+        'operator'   => views_handler_operator_andor(),
+        'value-type' => 'array',
+      ),
+      'assign_to_currentuid' => array(
+      	'help'       => t('Filter Case Tracker cases by the Assigned user.'),
+      	'list'	     => 'views_handler_filter_usercurrent',
+		'list-type'  => 'select',
+		'name'	     => t('Case Tracker: Assigned to Current User'),
+		'field'	     => 'assign_to',
+		'operator'   => 'views_handler_operator_eqneq',
+      ),
+    ),
+  );
+
+  $tables['casetracker_project'] = array(
+    'name'           => 'casetracker_project',
+
+    'join' => array(
+      'left' => array(
+        'table'      => 'casetracker_case',
+        'field'      => 'pid',
+      ),
+      'right' => array(
+        'field'      => 'nid',
+        'type'       => 'inner',
+      ),
+    ),
+
+    'fields' => array(
+      'project_number' => array(
+        'handler'    => 'casetracker_views_case_number',
+        'help'       => t('Display the case number of the Case Tracker case.'),
+        'name'       => t('Case Tracker: Case Number'),
+        'sortable'   => TRUE,
+      )
+    ),
+
+    'filters' => array(
+      'project_number' => array(
+        'help'       => t('Filter Case Tracker cases by their project.'),
+        'list'       => 'casetracker_views_project_options',
+        'name'       => t('Case Tracker: Project'),
+        'operator'   => views_handler_operator_andor(),
+        'value-type' => 'array',
+      ),
+    )
+  );
+
+  $tables['casetracker_case_states'] = array(
+    'name'           => 'casetracker_case',
+
+    'join' => array(
+      'left' => array(
+        'table'      => 'casetracker_case',
+        'field'      => 'case_status_id',
+      ),
+      'right' => array(
+        'field'      => 'csid',
+        'type'       => 'inner',
+      ),
+    ),
+
+    'sorts' => array(
+      'case_state_name' => array(
+        'name'       => t('Case Tracker: State Name'),
+        'help'       => t('Sort by Case Tracker state name.'),
+        'sortable'   => TRUE,
+      ),
+    ),
+  );
+  
+  $tables['casetracker_case_node'] = array(
+    'name'			 => 'node',
+
+    'join' => array(
+      'left' => array(
+        'table'      => 'node',
+        'field'      => 'vid',
+      ),
+      'right' => array(
+        'field'      => 'vid',
+        'type'       => 'inner',
+      ),
+    ),
+
+    'fields' => array(
+      'nid' => array(
+        'handler'    => 'casetracker_views_field_createCaseLink_handler',
+        'help'       => t('Link to create a new case for a project'),
+        'name'       => t('Case Tracker: Add Case link'),
+        'option'     => 'string',
+        'notafield'  => TRUE,
+        'help' => t('Display a link to add a new case for a project. Enter the text of this link into the option field; if blank the default "Add Case" will be used.'),
+      )
+    ),
+  );
+
+  return $tables;
+}
+
+/**
+ * Views field handler; display the case number of the Case Tracker case.
+ */
+function casetracker_views_case_number($fieldinfo, $fielddata, $value, $data) {
+  $project = db_fetch_object(db_query(db_rewrite_sql("SELECT cp.project_number FROM {casetracker_project} cp WHERE cp.nid = %d"), $data->casetracker_case_pid));
+  if ($project->project_number) { return $project->project_number .'-'. $data->casetracker_case_case_number; }
+}
+
+/**
+ * Views field handler; display the priority state of the case.
+ */
+function casetracker_views_priority_name($fieldinfo, $fielddata, $value, $data) {
+  return check_plain(casetracker_case_state_load('priority', $data->casetracker_case_case_priority_id));
+}
+
+/**
+ * Views field handler; display the name of the Case Tracker project.
+ */
+function casetracker_views_project_name($fieldinfo, $fielddata, $value, $data) {
+  $node = db_fetch_object(db_query(db_rewrite_sql("SELECT n.nid, n.title FROM {node} n WHERE n.nid = %d"), $data->casetracker_case_pid));
+  if ($node->nid) { return l($node->title, "node/$node->nid"); } // returns a linked case tracker project title.
+}
+
+/**
+ * Views field handler; display the status state of the case.
+ */
+function casetracker_views_status_name($fieldinfo, $fielddata, $value, $data) {
+  return check_plain(casetracker_case_state_load('status', $data->casetracker_case_case_status_id));
+}
+
+/**
+ * Views field handler; display the type state of the case.
+ */
+function casetracker_views_type_name($fieldinfo, $fielddata, $value, $data) {
+  return check_plain(casetracker_case_state_load('type', $data->casetracker_case_case_type_id));
+}
+
+/**
+ * Views field handler; display the user name the case has been assigned to.
+ */
+function casetracker_views_user_name($fieldinfo, $fielddata, $value, $data) {
+  return casetracker_get_name($data->casetracker_case_assign_to);
+}
+
+/**
+ * Views filter handler; filter Case Tracker cases by its priority state.
+ */
+function casetracker_views_priority_options() {
+  return casetracker_case_state_load('priority');
+}
+
+/**
+ * Views filter handler; filter Case Tracker cases by their project.
+ */
+function casetracker_views_project_options() {
+  $results = db_query(db_rewrite_sql("SELECT cp.project_number, n.title FROM {node} n INNER JOIN {casetracker_project} cp ON n.nid = cp.nid"));
+  $projects = array(); while ($result = db_fetch_object($results)) {
+    $projects[$result->project_number] = $result->project_number .' - '. $result->title;
+  } return $projects;
+}
+
+/**
+ * Views filter handler; filter Case Tracker cases by its status state.
+ */
+function casetracker_views_status_options() {
+  return casetracker_case_state_load('status');
+}
+
+/**
+ * Views filter handler; filter Case Tracker cases by its type state.
+ */
+function casetracker_views_type_options() {
+  return casetracker_case_state_load('type');
+}
+
+/**
+ * Views filter handler; filter Case Tracker cases by the assigned user.
+ */
+function casetracker_views_user_options() {
+  $users = array(0 => variable_get('casetracker_default_assign_to', variable_get('anonymous', t('Anonymous'))));
+  $results = db_query('SELECT uid, name FROM {users} WHERE status > 0 AND uid > 0');
+  while ($result = db_fetch_object($results)) {
+    $options[$result->uid] = check_plain($result->name);
+  } return $options;
+}
+
+/**
+ * Views field handler; Get a link to add a case for a project
+ * @link http://drupal.org/node/99565
+ * 
+ * @param	array
+ * @param 	array
+ * @param 	mixed
+ * @param 	array
+ * @return 	string
+ */
+function casetracker_views_field_createCaseLink_handler($fieldinfo, $fielddata, $value, $data) {
+  $node_types = node_get_types('names');
+  $case_types = array_filter(variable_get('casetracker_case_node_types', array('casetracker_basic_case')));
+  $operations = array();
+  foreach ($case_types as $case_type) { 
+    if($fielddata['options']) {
+  	  $linkText = $fielddata['options'];
+  	}
+  	else {
+  	  $linkText = t(
+        'Add !name', 
+        array('!name' => $node_types[$case_type])
+      );
+  	}
+  	
+    $operations[] = l(
+      $linkText,
+      'node/add/'.$case_type.'/'.$data->nid
+    ); 
+  }
+
+  return implode(' | ', $operations);
+}

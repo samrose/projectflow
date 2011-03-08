@@ -1,0 +1,151 @@
+<?php
+// $Id: casetracker_basic.module,v 1.20 2007/11/23 11:37:35 zero2one Exp $
+
+/**
+ * @file
+ * Enables a basic project node type for use with Case Tracker.
+ */
+
+/**
+ * Implementation of hook_perm().
+ */
+function casetracker_basic_perm() {
+  return array('create projects', 'create cases', 'edit own projects', 'edit own cases');
+}
+
+/**
+ * Implementation of hook_node_info().
+ */
+function casetracker_basic_node_info() {
+  return array(
+    'casetracker_basic_project' => array(
+      'name'        => t('Project'),
+      'module'      => 'casetracker_basic_project',
+      'description' => t('Create a basic project for use with Case Tracker.'),
+      'help'        => t('Create a basic project for use with Case Tracker.'),
+      'body_label'  => t('Description'),
+    ),
+    'casetracker_basic_case' => array(
+      'name'        => t('Case'),
+      'module'      => 'casetracker_basic_case',
+      'description' => t('Open a new case assigned to a particular project.'),
+      'help'        => t('Open a new case assigned to a particular project.'),
+      'body_label'  => t('Description'),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_form().
+ */
+function casetracker_basic_project_form(&$node) {
+  $form = array();
+
+  if (in_array($node->type, variable_get('casetracker_project_node_types', array('casetracker_basic_project')))) {
+    $form['title'] = array(
+      '#type'          => 'textfield',
+      '#title'         => t('Title'),
+      '#required'      => TRUE,
+      '#default_value' => $node->title,
+    );
+    $form['body_filter']['body'] = array(
+      '#type'          => 'textarea',
+      '#title'         => t('Description'),
+      '#default_value' => $node->body,
+      '#rows'          => 20,
+      '#required'      => TRUE,
+    );
+    $form['body_filter']['format'] = filter_form($node->format);
+  }
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_form().
+ */
+function casetracker_basic_case_form(&$node) {
+  $form = array();
+
+  if (in_array($node->type, variable_get('casetracker_case_node_types', array('casetracker_basic_case')))) {
+    $form['casetracker_case_detail'] = array(
+      '#type'              => 'fieldset',
+      '#title'             => t('Case details'),
+      '#collapsible'       => TRUE,
+      '#collapsed'         => FALSE,
+    );
+    $form['casetracker_case_detail']['title'] = array(
+      '#type'              => 'textfield',
+      '#title'             => t('Title'),
+      '#required'          => TRUE,
+      '#default_value'     => isset($node->title) ? $node->title : NULL,
+    );
+    $form['casetracker_case_detail']['body_filter']['body'] = array(
+      '#type'              => 'textarea',
+      '#title'             => t('Description'),
+      '#default_value'     => isset($node->body) ? $node->body : NULL,
+      '#rows'              => 20,
+      '#required'          => TRUE,
+    );
+    $form['casetracker_case_detail']['body_filter']['format'] = filter_form($node->format);
+  }
+
+  return $form;
+}
+
+/**
+ *  Implementation of hook_access().
+ */
+function casetracker_basic_project_access($op, $node) {
+  global $user;
+
+  switch($op) {
+  	case 'create':
+  	  return user_access('create projects');
+  	  break;
+  	  
+  	case 'update':
+  	case 'delete':
+  	  if (user_access('edit own projects') && ($user->uid == $node->uid)) {
+        return TRUE;
+      }
+  	  break;
+  }
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function casetracker_basic_case_access($op, $node) {
+  global $user;
+
+  switch($op) {
+  	case 'view':
+  	  // we have to check if the OG module is installed, otherwise this will 
+  	  // overule the OG nodeaccess
+  	  if(!module_exists('og')) {
+  	    return user_access('access case tracker');
+  	  }
+  	  // we check if the case isn't created by the current user or is 
+  	  // assigned to the current user, if so that user gets access
+  	  elseif(
+  	    user_access('access case tracker')
+  	    && 0 < (int)$user->uid
+  	    && ((int)$node->assign_to === (int)$user->uid
+  	         || (int)$node->uid === (int)$user->uid)
+  	  ) {
+  	    return true;
+  	  }
+  	  break;
+  	case 'create':
+  	  return user_access('create cases');
+  	  break;
+  	 
+  	case 'update':
+  	case 'delete':
+  	  if (user_access('edit own cases') && ($user->uid == $node->uid)) {
+        return TRUE;
+      }
+  	  break;
+  }
+}

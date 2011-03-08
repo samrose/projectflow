@@ -1,0 +1,412 @@
+<?php
+// $Id: casetracker_dashboard.module,v 1.6 2007/11/23 07:51:33 zero2one Exp $
+
+/**
+ * Implementation of hook_help().
+ */
+function casetracker_dashboard_help($section) {
+	switch ($section) {
+		case 'casetracker/dashboard':
+			return '<p>'.t('Overview of number of cases for each project').'</p>';
+			break;
+		case 'admin/content/casetracker/dashboard':
+			return '<p>' . t('Adminster dashboard') . '</p>';
+			break;
+	}
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function casetracker_dashboard_perm() {
+	return array(
+			'access case tracker dashboard',
+		);
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function casetracker_dashboard_menu($may_cache) {
+	global $user;
+	$items = array();
+	
+	if ($may_cache) 
+	{
+	    /* -- user accessible menu items ---------------------------------------- */
+	    $items[] = array(
+			'access'             => user_access('access case tracker dashboard'),
+			'callback'           => 'casetracker_dashboard_overview',
+			'path'               => 'casetracker/dashboard',
+			'title'              => t('Dashboard'),
+			'weight'             => 2
+	    );
+	    
+	    $items[] = array(
+			'access'             => user_access('administer case tracker'),
+			'callback'           => 'drupal_get_form',
+			'callback arguments' => array('casetracker_dashboard_admin_form'),
+			'description'        => t('Configure the Case Tracker dashboard options with these settings.'),
+			'path'               => 'admin/settings/casetracker/dashboard',
+			'title'              => t('Dashboard'),
+			'type'               => MENU_LOCAL_TASK,
+		);
+	}
+
+	return $items;
+}
+
+
+
+
+/**
+ * Menu callback
+ * Displays a list of all projects and a count of all their states.
+ *
+ * @param	void
+ * @return 	string
+ */
+function casetracker_dashboard_overview() {
+  drupal_set_breadcrumb(
+  	  array(
+  	    l(t('Home'), NULL), 
+  	    l(t('Case Tracker'), 'casetracker'), 
+  	    l(t('Dashboard'), 'casetracker/dashboard')
+  	  )
+  	);
+  drupal_add_css(drupal_get_path('module', 'casetracker') .'/casetracker.css');
+  
+  $output = array();
+  	
+  // first we create an overview of all projects and their states counts
+  	$output[] = _casetracker_dashboard_states();
+  
+  return implode("\n\n", $output);
+}
+
+/**
+ * Form callback
+ * Configure the CaseTracker dashboard
+ * 
+ * @param 	void
+ * @return 	string
+ */
+function casetracker_dashboard_admin_form() 
+{
+	$form = array();
+	
+	$form['casetracker_dashboard_admin'] = array(
+	'#type'          => 'fieldset',
+	'#title'         => t('Dashboard settings'),
+	'#collapsible'   => TRUE,
+	'#collapsed'     => FALSE,
+	'#description'   => t('Assign the case status that need to be counted as Done'),
+	);
+	
+	$states = casetracker_case_state_load('status');
+
+	$statesChecked = variable_get('casetracker_dashboard_states_done', array());
+	
+	foreach($states AS $csid => $title)
+	{
+		$checked = isset($statesChecked[$csid])
+					? $statesChecked[$csid]
+					: false;
+		$form['casetracker_dashboard_admin'][$csid] = array(
+			'#type'          => 'checkbox',
+			'#title'         => t($title),
+			'#default_value' => $checked,
+		);
+	}
+	
+	return system_settings_form($form);
+}
+
+/**
+ * Form submit hook
+ *
+ * @param 	string
+ * @param 	array
+ * @return 	void
+ */
+function casetracker_dashboard_admin_form_submit($_formId, $_formValues)
+{
+	if($_formValues['op'] == 'Save configuration')
+	{
+		// get the states
+		$states = casetracker_case_state_load('status');
+		
+		
+		$settings = array();
+		foreach($states AS $csid => $title)
+		{
+			$settings[$csid] = (isset($_formValues[$csid]))
+				? (bool)$_formValues[$csid]
+				: false;
+		}
+		
+		variable_set('casetracker_dashboard_states_done', $settings);
+		
+		drupal_set_message(t('The configuration options have been saved.'));
+	}
+}
+
+
+/**
+ * Function to get an overview of all projects and their states count
+ * 
+ * @param 	void
+ * @return 	string
+ */
+function _casetracker_dashboard_states()
+{
+	$output = array();
+	
+	 // first we get all the possible projects
+	 	$projects = _casetracker_dashboard_getProjects();
+	 
+	 // we get the possible states
+	 	$states = casetracker_case_state_load('status');
+	 
+	 // we get the project - cases count
+	 	$caseCount = _casetracker_dashboard_projectCasesCount();
+	 
+	 // create the table array
+	 	$projectCaseCount = _casetracker_dashboard_createProjectCountArray(
+	 			$projects,
+	 			$states,
+	 			$caseCount
+	 		);
+	 
+	 // create the overview table
+	 	$headers = array(
+	 			array(
+	 				'data'  => t('Project'),
+	 				'class' => 'project',
+	 			),
+	 		);
+	 	foreach($states AS $state)
+	 	{
+	 		$headers[] = t($state);
+	 	}
+	 	$headers[] = array(
+	 			'data' => t('Todo'), 
+	 			'class' => 'devider'
+	 		);
+	 	$headers[] = t('Done');
+	 	$headers[] = array(
+	 			'data' => t('Total'), 
+	 			'class' => 'devider'
+	 		);
+	 	$headers[] = array(
+	 			'data' => t('Completed<br />%'), 
+	 			'class' => 'percent'
+	 		);
+	 	
+	 // theme the array
+	 	$output[] = theme(
+	 				'table', 
+	 				$headers, 
+	 				$projectCaseCount,
+	 				array('id' => 'casetracker-dashboard')
+	 				);
+	 
+	return implode("\n", $output);
+}
+
+/**
+ * Function to get all the projects
+ * 
+ * @param 	void
+ * @return 	array
+ */
+function _casetracker_dashboard_getProjects()
+{
+	static $projects;
+	
+	if(!is_array($projects))
+	{
+		$filter_sql = NULL;
+		$filter_args = array_filter(
+			variable_get(
+				'casetracker_project_node_types',
+				array('casetracker_basic_project')
+			)
+		);
+	
+		// this is an interisting feature
+		if ($project_filter == 'my')
+		{
+			global $user;
+			$filter_sql = 'AND n.uid = %d';
+			$filter_args[] = $user->uid;
+		}
+		
+		// build the query
+		$sql = db_rewrite_sql(
+			'SELECT n.nid, n.title, cp.project_number '
+			. 'FROM {node} n '
+			. 'LEFT JOIN {casetracker_project} cp ON (n.vid = cp.vid) '
+			. 'WHERE n.type '
+			. 'IN (\''
+				. implode('\',\'', $filter_args)
+			.'\') '
+			. 'AND n.status = 1 '
+			. $filter_sql);
+			
+		$sql .= 'ORDER BY n.title ASC';  
+			
+		$results = db_query($sql);
+	
+		$projects = array();
+		while ($row = db_fetch_object($results))
+		{
+			$projects[$row->nid] = array(
+									'project_number' => $row->project_number,
+									'title'			 => $row->title
+								);
+		}
+	}
+
+	return $projects;
+}
+
+/**
+ * Function to get an array of projects, case status count
+ *
+ * @param void
+ * @return array
+ */
+function _casetracker_dashboard_projectCasesCount()
+{
+	$filter_args = array_filter(
+			variable_get(
+				'casetracker_project_node_types',
+				array('casetracker_basic_project')
+			)
+		);
+		
+	$sql = db_rewrite_sql('SELECT '
+			    . ' n.nid, c.csid, Count(1) AS number_of_cases '
+    	  . 'FROM '
+    		  . ' {node} AS n '
+    		  . ' Inner Join {casetracker_case} AS b ON (n.nid = b.pid) '
+    		  . ' Inner Join {node} AS d ON (b.vid = d.vid)'
+    		  . ' Inner Join {casetracker_case_states} AS c ON (b.case_status_id = c.csid) '
+    	  . 'WHERE '
+    		  . ' n.type IN (\''	. implode('\',\'', $filter_args) .'\') '
+			    . ' AND n.status = 1 '
+    	);
+    
+    $sql .= 'GROUP BY n.nid, c.csid ';
+    $sql .= 'ORDER BY n.nid ASC, c.csid ASC ';  
+    
+    $results = db_query($sql);
+	
+	$caseCounter = array();
+	while ($row = db_fetch_object($results))
+	{
+		$caseCounter[] = $row;
+	}
+
+	return $caseCounter;
+}
+
+/**
+ * Function to combine project - states and case count to one big array
+ * 
+ * @param 	array	projects
+ * @param 	array	states
+ * @param 	array	count
+ * @return 	array
+ */
+function _casetracker_dashboard_createProjectCountArray($_projects, $_states, $_caseCount)
+{
+	$overview = array();
+	
+	// init vars
+		$info = array();
+		$completedKeys = array();
+		
+	// get the state keys that have to be counted as done
+		$statesDone = variable_get('casetracker_dashboard_states_done', array());
+		foreach($statesDone AS $key => $done)
+		{
+			if(true === $done)
+			{
+				$completedKeys[] = $key;
+			}
+		}
+		
+	// create the states count array	
+		foreach($_states AS $key => $value)
+		{
+			$info['state_' . $key] = array(
+					'data' => 0
+				);
+		}
+		$info['todo'] = array(
+				'data' => 0, 
+				'class' => 'devider'
+			);
+		$info['done'] = array(
+				'data' => 0
+			);
+		$info['total'] =array(
+				'data' => 0, 
+				'class' => 'devider'
+			);
+		$info['completed'] = array(
+				'data' => 0, 
+				'class' => 'percent'
+			);
+	// first add all possible projects as an extra array to the projects array
+		foreach($_projects AS $key => $project)
+		{
+			$link = l($project['title'], 'casetracker/cases/' . $key . '/all');
+			$overview[$key]['project'] = array(
+					'data' => $link,
+					'class' => 'project'
+				);
+			$overview[$key] = array_merge($overview[$key], $info);
+		}
+	
+	// loop through the counts and add the counts to the array
+		foreach($_caseCount AS $count)
+		{
+			$nid = (int)$count->nid;
+			$csid = (int)$count->csid;
+			
+			$overview[$nid]['state_' . $csid]['data'] = (int)$count->number_of_cases;
+			if(in_array($csid, $completedKeys))
+			{
+				$overview[$nid]['done']['data'] = $overview[$nid]['done']['data'] 
+											+ (int)$count->number_of_cases;
+			}
+			else
+			{
+				$overview[$nid]['todo']['data'] = $overview[$nid]['todo']['data']
+											+ (int)$count->number_of_cases;
+			}
+			$overview[$nid]['total']['data'] = $overview[$nid]['total']['data']
+											+ (int)$count->number_of_cases;
+		}
+	
+	// loop through the projects and count the percentage of completed cases
+		foreach($overview AS $key => $project)
+		{
+			if(0 < $project['total']['data'])
+			{
+				$overview[$key]['completed']['data'] = round(
+								($project['done']['data'] / $project['total']['data'])
+								* 100
+							);
+			}
+			else 
+			{
+				$overview[$key]['completed']['data'] = 100;
+			}
+		}
+	
+	return $overview;
+}

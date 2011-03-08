@@ -1,0 +1,20 @@
+// $Id: INSTALL.txt,v 1.1 2007/07/10 15:47:59 tatien Exp $
+
+REQUIREMENTS
+------------
+
+  * Drupal 5.1 or later
+
+INSTALLATION
+------------
+
+Unpack the module in your sites module directory. Then browse to
+"administer" -> "site building" -> "modules" (or "administer" ->
+"modules") and enable the Install Profile Wizard module.
+
+To enable permission to use the module, browse to "administer" -> 
+"user management" -> "access control" (or "administer" -> "access control")
+and set permissions for the Install Profile Wizard module.
+
+You will also need the crud.inc file available from the install_profile_api
+module.

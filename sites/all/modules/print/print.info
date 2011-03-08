@@ -1,0 +1,4 @@
+; $Id: print.info,v 1.1.2.2.4.2 2008/10/02 22:22:58 jcnventura Exp $
+name = "Printer-friendly pages (core)"
+description = "Adds a printer-friendly version link to content and administrative pages."
+package = "Printer, e-mail and PDF versions"

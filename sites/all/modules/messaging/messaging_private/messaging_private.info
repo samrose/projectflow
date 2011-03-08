@@ -1,0 +1,5 @@
+; $Id: messaging_private.info,v 1.1 2008/01/21 22:33:31 jareyero Exp $
+name = Privatemsg
+description = Sending Method: Integration with Privatemsg
+package = "Messaging"
+dependencies = messaging privatemsg

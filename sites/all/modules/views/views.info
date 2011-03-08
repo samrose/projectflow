@@ -1,0 +1,6 @@
+; $Id: views.info,v 1.2.2.3 2007/01/19 00:22:45 merlinofchaos Exp $
+name = Views
+description = The views module creates customized views of node lists.
+version = "$Name: DRUPAL-5--1-6-BETA5 $"
+package = Views
+

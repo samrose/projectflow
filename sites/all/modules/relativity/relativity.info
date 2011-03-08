@@ -1,0 +1,5 @@
+; $Id: relativity.info,v 1.1 2006/12/14 01:47:52 darius Exp $
+name = Node relativity
+description = Links nodes to form relationship graphs.
+#dependencies = module1 module2 module3
+package = "Node relationships"

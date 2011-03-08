@@ -1,0 +1,46 @@
+<?php
+// $Id: casetracker_mail.install,v 1.2 2007/11/23 07:51:33 zero2one Exp $
+
+/**
+ * Implementation of hook_install().
+ *
+ * Database schema last updated 2006-12 by Morbus Iff.
+ *
+ *   casetracker_mail:
+ *     msg_id: the message ID of an outgoing mail notification.
+ *     nid: the node ID to which this outgoing mail refers.
+ *     cid: the comment ID to which this outgoing mail refers.
+ */
+function casetracker_mail_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {casetracker_mail} (
+        msg_id varchar(250) NOT NULL,
+        nid int(11) NOT NULL,
+        cid int(11) NOT NULL,
+        PRIMARY KEY (msg_id)
+      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+      break;
+     
+    case 'pgsql':
+       db_query("CREATE TABLE {casetracker_mail} (
+        msg_id varchar(250) NOT NULL,
+        nid numeric(11) NOT NULL,
+        cid numeric(11) NOT NULL,
+        PRIMARY KEY  (msg_id)
+      )");
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function casetracker_mail_uninstall() {
+  db_query('DROP TABLE {casetracker_mail}');
+  variable_del('casetracker_mail_address');
+  variable_del('casetracker_mail_subject');
+  variable_del('casetracker_mail_case_message');
+  variable_del('casetracker_mail_comment_message');
+}

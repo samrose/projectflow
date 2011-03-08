@@ -1,0 +1,499 @@
+<?php
+/* $Id: install_profile_wizard.module,v 1.13 2007/11/27 00:54:25 tatien Exp $ */
+/* This module will dump a Drupal installation profile straight from the database. It needs editing, but will constitute a good start. */
+
+/**
+* Display help and module information
+* @param section which section of the site we're displaying help
+* @return help text for section
+*/
+function install_profile_wizard_help($section='') {
+
+  $output = '';
+
+  switch ($section) {
+    case "admin/help#install_profile_wizard":
+      $output = '<p>'.  t("Dumps a Drupal profile straight from the database. It needs editing, but will constitute a good start."). '</p>';
+      $output = '<p>'.  t("In order to use the module, simply point your browser to your Drupal site on path '/install_profile_wizard/<your_install_profile_name>'. The installation profile file will be generated in a textarea. Just copy-paste it to a .profile file."). '</p>';
+      break;
+  }
+
+  return $output;
+}
+
+/**
+* Valid permissions for this module
+* @return array An array of valid permissions for the install_profile_wizard module
+*/
+
+function install_profile_wizard_perm() {
+  return array('access profile wizard');
+}
+
+
+/**
+ * Implementation of hook_menu().
+ *
+ * You must implement hook_menu() to emit items to place in the main menu.
+ * This is a required step for modules wishing to display their own pages,
+ * because the process of creating the links also tells Drupal what
+ * callback function to use for a given URL. The menu items returned
+ * here provide this information to the menu system.
+ *
+ * With the below menu definitions, URLs will be interpreted as follows:
+ *
+ * If the user accesses http://example.com/?q=foo, then the menu system
+ * will first look for a menu item with that path. In this case it will
+ * find a match, and execute jacquard_foo().
+ *
+ * If the user accesses http://example.com/?q=bar, no match will be found,
+ * and a 404 page will be displayed.
+ *
+ * If the user accesses http://example.com/?q=bar/baz, the menu system
+ * will find a match and execute jacquard_baz().
+ *
+ * If the user accesses http://example.com/?q=bar/baz/1/2, the menu system
+ * will first look for bar/baz/1/2. Not finding a match, it will look for
+ * bar/baz/1. Again not finding a match, it will look for bar/baz. This
+ * time it finds a match, and so will execute jacquard_baz(1,2). Note
+ * the parameters being passed; this is a very useful technique.
+ *
+ * If the user accesses http://example.com/?q=bar/baz/52/97, the menu system
+ * finds a match, but since its callback is absent, it proceeds
+ * as above and ends up calling jacquard_baz(52,97) nonetheless.
+ */
+function install_profile_wizard_menu($may_cache) {
+  $items = array();
+
+  // The $may_cache parameter is used to divide menu items into two parts. Those
+  // returned when $may_cache is true must be consistently applicable for the
+  // current user at all times; the others may change or be defined at only
+  // certain paths. Most modules will have excusively cacheable menu items.
+  $items[] = array(
+    'path' => 'install_profile_wizard', 
+    'title' => t('Profile wizard'),
+    'description' => t('Generate a Drupal installation profile'),
+    'callback' => 'drupal_get_form',
+    'callback arguments' => 'install_profile_wizard_form',
+    'access' => user_access('access profile wizard'),
+    'type' => MENU_NORMAL_ITEM
+  );
+
+  return $items;
+}
+
+function install_profile_wizard_form($form_values = null) {
+    $form['title'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Profile Title'),
+        '#required' => TRUE,
+        '#default_value' => t('Generated'),
+        '#weight' => 0,
+    );
+    $form['description'] = array(
+        '#type' => 'textarea',
+        '#title' => t('Profile Description'),
+        '#required' => TRUE,
+        '#default_value' => t('Installation profile generated automatically on !date', array('!date' => date('jS M Y h:ia'))),
+        '#weight' => 1,
+    );
+    $form['name'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Profile Name (can only contain a-z and _)'),
+        '#required' => TRUE,
+        '#default_value' => t('generated'),
+        '#weight' => 2,
+    );
+    $form['export_nodetypes'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Export custom node types'),
+        '#default_value' => TRUE,
+        '#weight' => 3,
+    );
+    $form['export_roles'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Export roles'),
+        '#default_value' => TRUE,
+        '#weight' => 4,
+    );
+    $form['export_users'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Export users'),
+        '#default_value' => TRUE,
+        '#weight' => 5,
+    );
+    $form['export_menus'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Export menus'),
+        '#default_value' => TRUE,
+        '#weight' => 6,
+    );
+    $form['export_blocks'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Export blocks'),
+        '#default_value' => TRUE,
+        '#weight' => 7,
+    );
+    $form['export_aliases'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Export URL aliases'),
+        '#default_value' => TRUE,
+        '#weight' => 8,
+    );
+    $form['nodes'] = array(
+        '#weight' => 9,
+        '#type' => 'fieldset',
+        '#title' => t('Nodes to export'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+    );
+    node_types_rebuild();
+    $types = node_get_types();
+    foreach ($types as $name => $type) {
+        if ($type->custom) {
+            $form['nodes']['node_' . $type->type] = array(
+                '#type' => 'checkbox',
+                '#title' => $type->name,
+                '#default_value' => FALSE,
+          );
+        }
+    }
+
+    $form['download'] = array(
+        '#type' => 'submit',
+        '#submit' => TRUE,
+        '#value' => t('Download'),
+        '#weight' => 10,
+    );
+    $form['display'] = array(
+        '#type' => 'submit',
+        '#submit' => TRUE,
+        '#value' => t('Display'),
+        '#weight' => 10,
+    );
+
+    return $form;
+}
+
+
+function install_profile_wizard_serialize($var, $spaces = 4) {
+    return trim(preg_replace('/^/ms', str_repeat(' ', $spaces), var_export($var, true)));
+}
+
+function install_profile_wizard_form_submit($form_name, $form_values) {  
+    $profile_name = $form_values['name'];
+
+    $modules = install_profile_wizard_module_list();
+
+    $details = array(
+        'name' => $form_values['title'],
+        'description' => $form_values['description'],
+    );
+
+    $postcode = '';
+    $code = "<?php\n\n";
+
+    $code .= "// vim: filetype=php\n\n";
+    
+    $now = format_date(time());
+    $code .= "/**
+ * Installation profile.
+ * This code was generated by the profile wizard
+ * Date: $now
+ *
+ * This code goes in your .profile file
+ */
+
+/*
+  You must include the crud.inc file in your profile.
+  The file is part of the install_profile_api module.
+*/
+include_once('../crud.inc');\n\n";
+
+
+    $code .= "/************************************************************\n";
+    $code .= "*                           MODULES                         *\n";
+    $code .= "************************************************************/\n";
+    $code .= "function {$profile_name}_profile_modules() {\n";
+    $code .= "    return ";
+    $code .= install_profile_wizard_serialize($modules, 6);
+    $code .= ";\n";
+    $code .= "}\n\n";
+
+    $code .= "/************************************************************\n";
+    $code .= "*                           DETAILS                         *\n";
+    $code .= "************************************************************/\n";
+    $code .= "function ${profile_name}_profile_details() {\n";
+    $code .= "    return ";
+    $code .= install_profile_wizard_serialize($details, 6);
+    $code .= ";\n";
+    $code .= "}\n\n";
+
+    $code .= "function ${profile_name}_profile_final() {\n";
+
+    // variables (and theme)
+    $query_result = db_query('SELECT name FROM {variable}');
+    $code .= "/************************************************************\n";
+    $code .= "*                          VARIABLES                        *\n";
+    $code .= "************************************************************/\n";
+    while ($variable = db_fetch_object($query_result)) {
+        if (in_array($variable->name, array('install_profile', 'drupal_private_key', 'cron_last', 'content_schema_version'))) {
+            continue;
+        }
+        $value = install_profile_wizard_serialize(variable_get($variable->name, null), 4);
+        switch ($variable->name) {
+            case 'theme_default':
+                $code .= "    system_theme_data();\n";
+                $code .= "    db_query(\"UPDATE {system} SET status = 1 WHERE type = 'theme' and name = '%s'\", ". $value .");\n";
+                $postcode .= "    system_initialize_theme_blocks(". $value .");\n";
+                $code .= "    variable_set(". var_export($variable->name, true) .", ". $value .");\n";
+                break;
+            default:
+                $code .= "    variable_set(". var_export($variable->name, true) .", ". $value .");\n";
+                break;
+        }
+    }
+
+    $code .= "\n";
+
+    // node types
+    if ($form_values['export_nodetypes']) {
+        $code .= "/************************************************************\n";
+        $code .= "*                         NODE TYPES                        *\n";
+        $code .= "************************************************************/\n";
+        
+        node_types_rebuild();
+        $types = node_get_types();
+        foreach ($types as $type) {
+          $type = get_object_vars($type);
+          $code .= "    install_add_content_type(" . install_profile_wizard_serialize($type) . ");\n";
+        }
+        
+        $code .= "\n";
+    }
+
+    // roles
+    if ($form_values['export_roles']) {
+        $code .= "/************************************************************\n";
+        $code .= "*                            ROLES                          *\n";
+        $code .= "************************************************************/\n";
+        
+        $code .= "    \$role_id = array();\n";
+        $result = db_query("SELECT rid, perm FROM {permission} WHERE 1");
+        $permissions = array();
+        while ($permission = db_fetch_object($result)) {
+          $permissions[$permission->rid] = explode(',', $permission->perm); 
+        }
+        
+        foreach (user_roles() as $role_id => $role_name) {
+          $perms = install_profile_wizard_serialize($permissions[$role_id]);
+          $code .= "    install_set_permissions(" . ($role_id > 2 ? "\$role_id['$role_name'] = install_add_role('$role_name')" : $role_id) . ", $perms);\n";
+        }
+        
+        $code .= "\n";
+    }
+
+    // users
+    if ($form_values['export_users']) {
+        $code .= "/************************************************************\n";
+        $code .= "*                            USERS                          *\n";
+        $code .= "************************************************************/\n";
+        if ($form_values['export_roles']) {
+          $query_result = db_query('SELECT {users}.name AS name, {users}.pass AS pass, {users}.mail AS email, {users}.status AS status, {role}.name AS role FROM {users} LEFT JOIN {users_roles} ON {users}.uid = {users_roles}.uid LEFT JOIN {role} ON {role}.rid={users_roles}.rid WHERE {users}.uid>0 ORDER BY {users}.uid');
+          $users = array();
+          while ($user = db_fetch_object($query_result)) {
+            if (!isset($users[$user->name])) {
+              $users[$user->name] = drupal_clone($user);
+              $users[$user->name]->role = array();
+            }
+            if (!is_null($user->role)) {
+              $users[$user->name]->role[] = $user->role;
+            }
+          }
+          foreach ($users as $user) {
+            $code .= "    install_add_user('$user->name', '$user->pass', '$user->email', " . install_profile_wizard_serialize($user->role) . ", $user->status);\n";
+          }
+        } else {
+          $query_result = db_query('SELECT * FROM {users} WHERE uid>0 ORDER BY uid');
+          while ($user = db_fetch_object($query_result)) {
+            $code .= "    install_add_user('$user->name', '$user->pass', '$user->email', array(), $user->status);\n";
+          }
+        }
+        $code .= "\n";
+    }
+
+    // menus
+    if ($form_values['export_menus']) {
+        $code .= "/************************************************************\n";
+        $code .= "*                            MENUS                          *\n";
+        $code .= "************************************************************/\n";
+        $code .= "\n";
+
+        $code .= "    // Primary links\n";
+        $code .= "    install_menu_create_menu_items(".install_profile_wizard_serialize(install_profile_wizard_walk_menu(2)).",2);\n";
+        $code .= "\n";
+        $code .= "    // Other menus\n";
+        $code .= "    install_menu_create_menu_items(".install_profile_wizard_serialize(install_profile_wizard_walk_menu(0,array(1,2))).",0);\n";
+        $code .= "\n";
+    }
+
+    if ($form_values['export_aliases']) {
+        $code .= "/************************************************************\n";
+        $code .= "*                         URL ALIASES                       *\n";
+        $code .= "************************************************************/\n";
+        $code .= "\n";
+        $code .= install_profile_wizard_generate_inserts('url_alias', db_query('SELECT src,dst FROM {url_alias}'));
+    }
+
+    // blocks
+    if ($form_values['export_blocks']) {
+        $code .= "/************************************************************\n";
+        $code .= "*                           BLOCKS                          *\n";
+        $code .= "************************************************************/\n";
+        $code .= "\n";
+        $query_result = db_query('SELECT * FROM {blocks}');
+        while ($block = db_fetch_object($query_result)) {
+            $code .= "    install_add_block('$block->module', $block->delta, '$block->theme', $block->status, $block->weight, '$block->region', $block->custom, $block->throttle, $block->visibility, '$block->pages', '$block->title');\n";
+        }
+        if ($form_values['export_roles']) {
+            $query_result = db_query('SELECT * FROM {blocks_roles} INNER JOIN {role} ON {role}.rid={blocks_roles}.rid');
+            while ($block_role = db_fetch_object($query_result)) {
+                $code .= "    install_add_block_role('$block_role->module', $block_role->delta, \$role_rid['$block_role->name']);\n";
+            }
+        }
+        $code .= "\n";
+    }
+
+    $code .= install_profile_wizard_export_nodes($form_values);
+
+    $code .= "\n$postcode\n";
+    $code .= "    return;\n";
+    $code .= "}\n\n";
+
+    $code .= "?>\n";
+
+    if ($form_values['op'] == t('Download')) {
+        header('Content-type: text/plain');
+        header('Content-Disposition: attachment; filename="' . $profile_name . '.profile"');
+        echo $code;
+    }
+    else {
+        echo theme('page', '<pre><code language="php">' . highlight_string($code, true) . '</code></pre>');
+    }
+
+    return;
+}
+
+function install_profile_wizard_export_nodes($form_values) {
+    
+    $output = '';
+    $output .= "/************************************************************\n";
+    $output .= "*                       EXPORTING NODES                     *\n";
+    $output .= "************************************************************/\n";
+
+    $query_result = db_query('SELECT * FROM {node_type}');
+    while ($nodetype = db_fetch_object($query_result)) {
+        if ($nodetype->custom && $form_values['node_' . $nodetype->type]) {
+            $output .= "    // exporting nodes of type: " . $nodetype->name . "\n";
+            $output .= install_profile_wizard_generate_inserts('node', db_query("SELECT * FROM {node} WHERE type='%s'", $nodetype->type));
+            $output .= install_profile_wizard_generate_inserts('node_revisions', db_query("SELECT {node_revisions}.* FROM {node_revisions} INNER JOIN {node} ON {node_revisions}.nid = {node}.nid  WHERE {node}.type='%s'", $nodetype->type));
+        }
+    }
+    return $output;
+}
+
+function install_profile_wizard_generate_inserts($table, $result, $spaces = 4) {
+    $output = '';
+    while ($row = db_fetch_array($result)) {
+        $output .= install_profile_wizard_generate_insert($table, $row, $spaces) . "\n";
+    }
+    return $output;
+}
+
+function install_profile_wizard_generate_insert($table, $data, $spaces = 4) {
+    $spaces = str_repeat(' ', $spaces);
+    $query = $spaces . "db_query(\n${spaces}    \"INSERT INTO {" . $table . "} (";
+    $query .= join(',',array_keys($data));
+    $query .= ")\n${spaces}    VALUES (";
+    $query .= join(',',array_pad(array(), count($data), "'%s'"));
+    $query .= ")\",\n";
+    $params = array();
+    foreach ($data as $value) {
+        $params[] = install_profile_wizard_serialize($value);
+    }
+    $query .= $spaces . '    ' . join(',', $params) . "\n";
+    $query .= $spaces . ');';
+    return $query;
+}
+
+function install_profile_wizard_walk_menu($parent_id, $skip_mids = array()) {
+    $menu = array();
+
+    $query_result = db_query('SELECT * FROM {menu} WHERE pid=%d', $parent_id);
+    while ($item = db_fetch_object($query_result)) {
+        $item = (array) $item;
+        if ( in_array($item['mid'], $skip_mids)) {
+            continue;
+        }
+        $item['children'] = install_profile_wizard_walk_menu($item['mid']);
+        unset($item['mid']);
+        unset($item['pid']);
+        $menu[] = $item;
+    }
+
+    return $menu;
+}
+
+/**
+ * Return the list of modules, ordered so that dependencies are respected.
+ */
+function install_profile_wizard_module_list() {
+    $modules = array();
+    $module_cache = module_rebuild_cache();
+
+    foreach ($module_cache as $module) {
+        if ( ! $module->status || $module->name == "install_profile_wizard") {
+            continue;
+        }
+
+        $modules[] = array(
+            'deps' => install_profile_wizard_module_dependencies($module_cache, $module->name),
+            'name' => $module->name,
+        );
+    }
+    
+    // Re-order modules (dependencies first).
+    for ( $i = 0; $i < count($modules); $i++) {
+        for ( $j = 0; $j < count($modules) - 1; $j++) {
+            if ($i == $j) {
+                continue;
+            }
+            if ( in_array($modules[$i]['name'], $modules[$j]['deps'])) {
+                $tmp = $modules[$j];
+                $modules[$j] = $modules[$i];
+                $modules[$i] = $tmp;
+            }
+        }
+    }
+
+    return array_map(create_function('$a', 'return $a["name"];'), $modules);
+}
+
+/**
+ * Get dependencies of a module within a list of modules.
+ */
+function install_profile_wizard_module_dependencies($module_list, $module) {
+    $deps = $module_list[$module]->info['dependencies'];
+
+    if ( !is_array($deps)) {
+        $deps = array();
+    }
+    
+    foreach ($deps as $dep) {
+        $deps = array_merge($deps, install_profile_wizard_module_dependencies($module_list, $dep));
+    }
+
+    return $deps;
+}
+
+

@@ -1,0 +1,85 @@
+<?php
+// $Id: casetracker_xmlrpc.module,v 1.3 2007/10/25 08:04:16 zero2one Exp $
+
+/**
+ * @file
+ * Enables Case Tracker cases to be created via XML-RPC.
+ *
+ * Note: this is a rather incomplete implementation of an XML-RPC server
+ * for Case Tracker, as it allows only one action: creating a new case.
+ * If you'd like to fund a full-featured implementation, don't hesitate
+ * to contact the developers listed in the README.txt.
+ */
+
+/**
+ * Implementation of hook_perm().
+ */
+function casetracker_xmlrpc_perm() {
+  return array('create cases via XML-RPC', );
+}
+
+/**
+ * Implementation of hook_xmlrpc().
+ */
+function casetracker_xmlrpc_xmlrpc() {
+  return array(array(
+    'casetracker.newCase',
+    'casetracker_xmlrpc_new_case',
+    array('string', 'string', 'string', 'struct'),
+    t('Open a new case assigned to a particular project.'),
+ ));
+}
+
+/**
+ * XML-RPC handler; creates a new case based on incoming values.
+ *
+ * The XML-RPC client is responsible for passing a $data array
+ * that is a valid Drupal $node, with all the relevant keys created
+ * (if this is an event case, event keys must exist; if CCK or Flexinode,
+ * admin-created keys must exist and have values, etc.). $data is passed
+ * directly to node_save() without validation/modification. This DOES
+ * force knowledge of the $node structure onto the XML-RPC client, but
+ * allows much more flexibility (on the client end, which can decide
+ * if an item should be published, promoted, etc., etc., etc.).
+ *
+ * @todo We should at least check that the passed node type is one of
+ * our valid case tracker node types, and/or check for other case-related
+ * values (like status IDs and so forth). Who wants to fund that, HmMMmM?
+ */
+function casetracker_xmlrpc_new_case($username, $password, $data) {
+  $user = casetracker_xmlrpc_validate_user($username, $password);
+  if (!$user->uid) { return casetracker_xmlrpc_error($user); }
+  $data = (object)$data; node_save($data); // force to object.
+  return t('Your data was accepted and submitted as a node.');
+}
+
+/**
+ * Ensure that the given user has permission to create cases.
+ * Stolen and made relevant for us from blogapi_validate_user().
+ */
+function casetracker_xmlrpc_validate_user($username, $password) {
+  global $user;
+
+  $user = user_authenticate($username, $password);
+
+  if ($user->uid) {
+    if (user_access('create cases via XML-RPC')) {
+      return $user; // authorized. excelsior!
+    }
+    else { // naughty little monkey has tried to overstep bounds. NO BANANAS.
+      return t("This account does not have access to create cases via XML-RPC.");
+    }
+  }
+  else { ///me clucks disapprovingly.
+    return t('Wrong username or password.');
+  }
+}
+
+/**
+ * Prepare an error message for returning to the XML-RPC caller.
+ * Stolen and slightly modified from blogapi_error().
+ */
+function casetracker_xmlrpc_error($message) {
+  static $xmlrpcusererr; // stolen from blogapi_error. heathens.
+  return xmlrpc_error($xmlrpcusererr + 1, strip_tags($message));
+}

@@ -1,0 +1,4 @@
+; $Id: messaging.info,v 1.1 2008/01/21 22:33:30 jareyero Exp $
+name = Messaging Framework
+description = Drupal Messaging Monitoring Management
+package = "Messaging"

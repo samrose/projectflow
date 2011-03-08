@@ -1,0 +1,3 @@
+; $Id: install_profile_wizard.info,v 1.1 2007/07/10 15:47:59 tatien Exp $
+name = Install Profile Wizard
+description = "This module will dump a Drupal installation profile straight from the database in a textarea. It needs editing, but will constitute a good start."

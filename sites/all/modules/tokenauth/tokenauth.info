@@ -1,0 +1,3 @@
+; $Id: tokenauth.info,v 1.3 2007/06/18 22:54:03 dww Exp $
+name = Token authentication
+description = Enable aggregators, feed readers and other simple clients to see private pages by providing an authentication token.

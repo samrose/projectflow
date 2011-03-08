@@ -1,0 +1,4 @@
+; $Id: versioncontrol.info,v 1.1 2007/07/02 16:09:09 jpetso Exp $
+name = "Version Control API"
+description = "An interface to version control systems whose functionality is provided by pluggable back-end modules."
+package = Version Control

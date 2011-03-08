@@ -1,0 +1,4 @@
+; $Id: casetracker.info,v 1.1 2007/01/08 16:58:47 morbus Exp $
+name = Case Tracker
+package = Case Tracker
+description = Enables the handling of projects and their cases.

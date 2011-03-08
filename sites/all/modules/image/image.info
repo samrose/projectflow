@@ -1,0 +1,4 @@
+; $Id: image.info,v 1.4 2007/07/18 17:04:02 drewish Exp $
+name = Image
+description = Allows uploading, resizing and viewing of images.
+package = Image

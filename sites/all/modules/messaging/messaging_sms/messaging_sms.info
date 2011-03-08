@@ -1,0 +1,4 @@
+name = SMS Messaging
+description = Sending Method: SMS
+package = "Messaging"
+dependencies = messaging sms

@@ -1,0 +1,3 @@
+; $Id: token.info,v 1.1.2.1 2007/03/10 22:17:48 eaton Exp $
+name = Token
+description = Provides a shared API for replacement of textual placeholders with actual data.

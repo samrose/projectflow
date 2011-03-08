@@ -1,0 +1,16 @@
+<?php
+// $Id: timeline.install,v 1.1.2.2.2.2 2008/07/05 19:02:23 jmiccolis Exp $
+
+/**
+ * @file
+ * Timeline module installation and upgrade code.
+ */
+
+//////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Implementation of hook_install(). Installs the current version of the database schema.
+ */
+function timeline_install() {
+
+}

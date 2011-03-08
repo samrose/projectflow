@@ -1,0 +1,4 @@
+; $Id: date_api.info,v 1.5 2007/12/03 16:27:17 karens Exp $
+name = Date API
+description = A Date API that can be used by other modules.
+package = Date/Time

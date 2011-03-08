@@ -1,0 +1,5 @@
+; $Id: messaging_mail.info,v 1.1 2008/01/21 22:33:30 jareyero Exp $
+name = Simple Mail
+description = Mail Sending Method: Integration with Drupal mail API
+package = "Messaging"
+dependencies = messaging

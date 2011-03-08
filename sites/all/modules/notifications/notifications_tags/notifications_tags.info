@@ -1,0 +1,5 @@
+; $Id: notifications_tags.info,v 1.1 2008/01/21 22:29:35 jareyero Exp $
+name = Taxonomy Notifications
+description = Allows users to subscribe to taxonomy terms.
+package = "Notifications"
+dependencies = notifications notifications_content taxonomy

@@ -1,0 +1,5 @@
+; $Id: notifications.info,v 1.1 2008/01/21 22:29:36 jareyero Exp $
+name = Notifications
+description = The basic notifications framework
+package = "Notifications"
+dependencies = token messaging

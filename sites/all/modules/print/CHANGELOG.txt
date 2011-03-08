@@ -1,0 +1,428 @@
+October 15, 2008
+        Update changelog
+        Backport send by e-mail from the 6.x branch
+        Fix PDF links (final touches to PDF support in Drupal 5: #299523 and #314754)
+        Fix #258095: Add block with links to PF versions
+        Fix #318939: Add title tag to icons
+        Fix #314521: Use real path when private download method is enabled
+October 3, 2008
+        Add PDF support in the Drupal 5 version of the module
+September 26, 2008
+        Verify print_controller return value to avoid PHP warnings
+        Add simpletest tests to Drupal 5
+        Add option to use URL alias in the link
+September 22, 2008
+        Fix #311270: Use node_not_found() instead of node_access_denied() when appropriate
+        Make the code closer to Drupal's node_view()
+September 18, 2008
+        Fix #308620 by robertDouglass: cast cid to int
+September 13, 2008
+        Add API index file
+September 11, 2008
+        Update changelog
+        Update translations with current .pot
+September 10, 2008
+        Update documentation
+        Use module's CSS files
+        Footer can now be choice between none, site or user-defined
+September 4, 2008
+        Repair type-specific link settings
+September 3, 2008
+        Fix wrong fix to #299123
+September 2, 2008
+        Move CSS files to css directory.
+        Fix #301192: handle arrays in queries correctly
+        Fix #299123 and #299133: remove PHP notices
+August 14, 2008
+        Improved URL rewriting function
+August 7, 2008
+        Add the links CSS file for the normal link
+        Fix bug with visibility where the link was shown when no page was specified but the 'show only in listed pages' was selected
+August 6, 2008
+        Enable selection of none, theme or user-defined logo. Added also capability to upload logo directly from the settings form.
+        Added a new link area in the upper right corner of the content
+        Add option to select location of the links
+        Simplify settings forms by using collapsible fieldsets
+        Moved taxonomy to lower right corner of template
+        Replaced all inline styles with a core-loaded CSS file
+August 5, 2008
+        Sync 6.x to 5.x
+July 30, 2008
+        Fix #280949: Add macros to the CSS input
+        Fix #285496: prevent re-encoding of the encoded query
+July 21, 2008
+        Remove DOS CR+LF
+July 16, 2008
+        Vietnamese translation.
+        Updated all translations
+        Misc fixes from the coder module
+July 15, 2008
+        Removed visibility API, now using an in-module solution similar to the one used in the 6.x version
+        With the new agreement between the major search engines, robots=nocache is obsolete
+        To make the job easier for themers, added access to the $node var inside the template
+        Fix #276627: Accept paths of the form node/nnn/args
+        Fix #282385: Remove whitespace between icon and text, use margin instead
+July 11, 2008
+        #195148 by promes: Dutch tranlation of 5.x-3.0
+June 13, 2008
+        Fix #270095 by suit4: prevent validation error when the class field is empty
+June 6, 2008
+        Simplify CSS inclusion code a bit.
+        Separate open in new window option
+        Make the title in the template be a heading 1.
+        Add aux var print['url']
+        Restore the print_fill_attributes function
+        Remove the greybox and thickbox selection
+        Add ability to specify customised classes to the PF links
+June 4, 2008
+        Fix #265864: fix the visibility API integration and document it in the README.txt
+        Fix #266186 by aaustin: Use drupal_get_title to obtain the page title
+        Fix #266318 by sun: Use theme_image for the icons (also fix #262900)
+June 2, 2008
+        Fix #263408: var name bug prevents site name being shown
+May 30, 2008
+        Fix #263349: Add CCK's CSS file to properly display inlined fields
+May 21, 2008
+        Enable access to print['node'] inside the template
+May 13, 2008
+        Added Danish translation. Thanks topsys!
+        Update Changelog for 5.x-3.5
+May 12, 2008
+        Slightly better template vars handling
+May 11, 2008
+        Improve translability of template strings
+May 10, 2008
+        Improve the documentation
+May 7, 2008
+        Add selection between text, icon or both.
+        Created two .inc files to harmonize with the 6.x version
+May 6, 2008
+        Changes to comply with http://www.drupaltoughlove.com/review/printer-friendly-pages
+April 21, 2008
+        Try to fix #230013: only call preg_replace with comment author link if there's anything to replace
+        Added Indonesian translation. Thanks SepedaTua!
+        Added Slovak translation. Thanks empError!
+        Fix #230013: correct German translation
+April 17, 2008
+        Fix #242914: Remove duplicate PF link in top outlined pages
+        Added Polish translation. Thanks sir_kula!
+        Added Swedish translation. Thanks seals!
+April 3, 2008
+        Add thickbox module support.
+        Fix #239896: Make sure drupal_get_title() returns the original page's title
+April 2, 2008
+        Added Turkish translation. Thanks turkyilmaz1963
+        Merge all warning removal changes from 6.x to 5.x
+March 27, 2008
+        Remove hard-coding of the greybox class name, now changes to what greybox uses (#233203)
+March 24, 2008
+        Updated Romanian translation. Thanks Andrei
+March 21, 2008
+        Updated translation files to match current code
+March 14, 2008
+        Fix #233203: Add option to open in new window using the jQuery Greybox Redux module
+March 11, 2008
+        Fix #232650 by nterbogt: fake the menu item better
+March 5, 2008
+        Fix #230318 by shaisachs: include page query in PF link
+March 4, 2008
+        Update changelog for release 5.x-3.3
+        Enable use of the visibility_api module when it is installed
+        Remove all the print variables on uninstall
+        Better fix for #227127: use number of patterns instead of comparing to a
+February 28, 2008
+        Fix #227625: add print['url'] var with absolute source url
+February 27, 2008
+        Handle uppercase 'a' tags
+February 26, 2008
+        Support print.node-.tpl.php filenames
+February 15, 2008
+        Correct print vars when using the printable engine
+February 14, 2008
+        Add current page title to printed breadcrumb
+        Fix #216728 better: if first link was duplicate a new ref was generated
+February 12, 2008
+        Added breadcrumb to PF page
+February 9, 2008
+        Better support for Drupal sites that do not reside in the server root.
+        Fix the 'printable' engine to display the page title.
+        Fix #218963 by mkalkbrenner: Fix wrong usage of node_invoke_nodeapi
+        Cleanup code (ran latest coder module)
+February 8, 2008
+        Replace module CSS import with an @import statement
+February 5, 2008
+        Fix 217928: add default value to variable_get('anonymous')
+February 4, 2008
+        Fix #217439: Add defined javascript to the PF page
+        Fix #198688: remove added %20
+        Remove whitespace immediately before and after the '=' sign
+        Fix #216728 by jpereza: Don't show duplicate URLs in the URL list
+        Fix #216716: do not process hreflang attributes
+January 28, 2008
+        Support paging module official release (Fix #215103)
+January 25, 2008
+        Add rel=nofollow tag to PF link (#213951)
+        Add taxonomy terms to the PF page (#214081)
+        Update pot to latest code
+        Right fix for #213425
+January 24, 2008
+        Sync 5.x to 6.x
+        Sync 5.x to 4.7.x
+        Remove comment forms from PF page (fix for #213425)
+January 23, 2008
+        Fix wrong Paginate hack (replace pages_count with page_count)
+January 22, 2008
+        Added ability to change the output strings through theming (as per #206365)
+        Slightly better solution to #211349.
+        Added Portuguese (Brazil) translation (thanks psychopath_mind!)
+January 21, 2008
+        Fix #211349: Add current query params to PF link
+January 8, 2008
+        Update changelog
+January 5, 2008
+        Add div tags around the logo image (fix for #206568)
+January 2, 2008
+        Fix #202243: Use the anonymous setting for pages with a blank author variable
+December 14, 2007
+        Added ability to theme the print_format_link function (fix for #198397)
+        Added access check to the print_insert_link function
+December 4, 2007
+        Minor fix to #192855, use full base_url if it does not include subdirs
+December 3, 2007
+        Sync print 5.x to 4.7.x
+        Sync 5.x to 6.x
+        Proper fix to the book_node_visitor_html_pre which was incorrectly committed with 'print' instead of 'view'
+        Fix #195917: Use correct module check in hook_link_alter
+December 2, 2007
+        Add replacement book_node_visitor_html_pre so that CCK pages in book nodes print correctly
+November 22, 2007
+        Fix #192855: If relative links start with '/' just append them to the server name (commit to 5.x-3.x-dev)
+        Fix #192855: If relative links start with '/' just append them to the server name
+November 19, 2007
+        Sync print 5.x to 4.7.x
+        Sync print 5.x to 4.7.x
+        Update changelog
+        Complete Spanish translation. Thanks gustz!
+        Complete French translation. Thanks rondev!
+November 17, 2007
+        Complete versions of the Hungarian and German translations. Thanks hinger and hailstorm!
+        Try to solve #192855, by checking also for index.php in relative links
+November 15, 2007
+        Sync print 5.x to 6.x
+        Sync print 5.x to 4.7.x
+        Final translation to russian. Thanks VladSavitsky!
+        Remove TODOs in the .po files
+        Updated Norwegian translation to final. Thanks stenjo!
+        Added (partial) Italian translation. Thanks ccattaneo74!
+        Added (partial) Ukrainian translation. Thanks artem_sokolov!
+        Added (partial) Romanian translation. Thanks baudolino!
+November 15, 2007
+        Added (partial) Romanian translation. Thanks baudolino!
+November 13, 2007
+        Make anchor tags (#id) links usable in the PF version again (after the base href fix broke it).
+        Add setting to control the book PF link via this module
+        Update all .po files to the latest print.pot from the potx module
+November 9, 2007
+        Add the capability to handle book's PF link via this module
+November 8, 2007
+        Enable choice of method to open the new window via radio boxes (now possible to select a Javascript XHTML Strict compliant method)
+November 7, 2007
+        Correct fix for the duplicate PF link in book pages
+        Sync documentation in HEAD with the 5.x version
+        Russian translation by VladSavitsky. Thanks!
+        Remove duplicate PF link in book pages
+November 6, 2007
+        Updated the installation instructions (INSTALL.txt)
+        Update documentation (README, CREDITS and CHANGELOG)
+October 31, 2007
+        Fix #172100: use drupal_get_html_head to starting building the head section
+October 30, 2007
+        Backport of version 5.x-2.x-dev into Drupal 4.7
+        Minor changes
+        Minor changes
+        Minor changes
+October 29, 2007
+        Sync HEAD with latest print-5.x-2.x-dev
+        Changes to work with drupal 6.x
+October 28, 2007
+        Add an inactive line for an XHTML Strict compliant way of opening the PF page in a new window.
+        Fixed small code details raised by the coder module.
+        Updated Norwegian and Hungarian translation. Thanks stenjo and hinger!
+October 27, 2007
+        Added Portuguese (Portugal) translation. Thanks jcnventura :)
+        Fixed settings description bug in the URL list still describing the old link deactivation feature.
+        Remove link area in system pages
+        Update print.pot to current version (and the fr, de, hu and no .po files)
+        Fix problem with printing pages if printing comments is enabled, but the comments module is disabled.
+        Move the print/ path to a constant for easier modification of this hard-coded setting.
+October 25, 2007
+        Fix some issues with the book detection routine and check for access rights for system pages
+        Make the print_insert_link parameter optional.
+        Configure the display of the link for non-node types.
+        Prevent display of the link in book types.
+        Finish comment printing functions (configuration settings and print all comments with node contents capability). Solve #135089
+        Add print_insert_link function for use by content writers to position link anywhere in the content. Solves #186216 and (maybe) #180975
+        Support templates for specific content types and location of templates in both tthe theme directory (checked first) and the module directory. Solves #181458 and #171172
+        Support for printing individual comments
+October 24, 2007
+        Support printer-friendly pages everywhere in Drupal (adapted from printable module)
+October 23, 2007
+        Fix #184776 by deviantintegral: <a> tag rewrite affected <address>
+        No need to transalate spaces and paranthesis on " (retrieved on "
+        Changed print.pot to use string locations in print.module and not print.node.tpl.php
+        German translation by hailstorm
+        Norwegian translation by stenjo
+October 9, 2007
+        Re-structure template and code by moving all the printer-friendly-specific output processing to a dedicated function
+October 6, 2007
+        Hungarian translation by hinger.. Thanks!
+October 1, 2007
+        French translation by rondev
+        Fix #178596 and #178743 by Waldemar: Fix base URL, CSS import and logo code problems with IE 6/7
+September 24, 2007
+        Fixed bug in url alias destination nid, get it from the dst string now
+        Fix #174983: if clean urls is disabled use url() only if it is an a link that does not start with =q?
+        Fix #128049: also accept print/url_alias
+September 13, 2007
+        Try to fix #174983: handling of URLs with Drupal's ?q=
+September 12, 2007
+        Added $node->printing flag to alert other modules.
+        Fix #60817, #74949, #171146, #117236, #172252, #173244.
+        Fixed buggy link in comments, removed service links and fivestar modules output and removed Paginate's module pagination.
+        Correctly handle spaces in filenames and URLs.
+August 30, 2007
+        Fix #171039. urldecode() the input URL before calling url(/) so that unicode chars are processed correctly
+August 28, 2007
+        Fix bug of printer-friendly link being displayed for teasers
+        Fix bug where anchor tags were not correctly converted to absolute and the anchor destination was marked with '[Array]'
+        Made anchor links still navigable when the print urls option is selected
+        Fix bug of string parsing for t() calls in print.node.tpl.php
+        Regenerate po/print.pot with potx module
+August 27, 2007
+        File containing the default CSS styles
+        Changed the render method to behave more like node_view
+        Added the ability to enable/disable the printer-friendly like in the content type form
+        Configuration options regarding the Source URL and the ability to open the page in a new window and print it
+        New URL re-writing method
+        Overall definition of CSS classes and style
+        Hyphenated the words "printer-friendly"
+August 26, 2007
+        New URL rewriting engine; Definition of new CSS classes and styles; Configuration options regarding the Source URL and the ability to open the page in a new window and print it
+August 24, 2007
+        Sync with HEAD
+        Sync with HEAD
+        Profile printing is not working. Since utility is not clear, I am removing itfor now
+        Try to fix #71391 and try to display other node types through the use of the drupal render engine
+        Change maintainer information
+        Fix links to relative/internal URLs (#58100)
+        Fix #129535. Use ->url instead of
+        Fix #49794 and #89724. Use print/nid instead of node/nid/print
+        #60334 by the greenman. Handle 'a name' tags
+        Apply to CVS HEAD Andy Kirkham's DRUPAL-SA-2007-014: fixing access bypass bug for private issues
+August 23, 2007
+        Add current time/date before the Source URL
+        Make the printer friendly page XHTML Strict compliant.
+July 10, 2007
+        DRUPAL-SA-2007-014: fixing access bypass bug for private issues
+        DRUPAL-SA-2007-014: fixing access bypass bug for private issues
+March 26, 2007
+        clean up menu.
+        clean up menu.
+        remove dead code.
+        remove dead code.
+        adding .info file.
+        #88162 -- update to 5.0. patch by hunmonk, diggersf.
+October 23, 2006
+        French translation of print.module Drupal 4.7
+August 2, 2006
+        updated Dutch translation
+July 15, 2006
+        Czech translation of print.module
+March 30, 2006
+        issue #54997: extra slash in URLs
+        issue #54997: extra slash in URLs
+        issue #50299: missing t()
+        issue #50299: missing t()
+January 15, 2006
+        backport of semi-fix for issue #33909
+        backport of issue #42857
+December 31, 2005
+        Added init_theme to fix bug with logo.
+        http://drupal.org/node/42857
+December 30, 2005
+        update stable to HEAD
+        put some bug fixes from HEAD into DRUPAL-4-7
+        Fixed bug: http://drupal.org/node/25437
+        Fixed print url friendly (http://drupal.org/node/18716)
+        Updated to DRUPAL-4-7
+December 21, 2005
+        update version requirements
+        summarize tonight's changes
+        contrib by Markus Petrux for Drupal 4.6
+        remove hardcode print.css location, let robots meta work for print_generate_profile(), update users table query for Drupal 4.7, and fix an error missing parameter to variable_get()
+December 21, 2005
+        default settings point to a css file and it makes a lot of 404 errors to not have one to match
+        work on forms API compatability, and fixes towards issues #33909, #28265, #17322, #25437
+        bug fix #17317
+December 20, 2005
+        bug fixes #33909, #25275, #31715, #17317
+        fix bug #18716
+        Updated with patch for 4.7.
+        Updated for 4.
+August 24, 2005
+        Added missing word.
+        Added missing word.
+July 27, 2005
+        * Renamed file to print.node.tpl.php
+        * Created a general print controller to allow modules to generate printer friendly views.
+        * Printer friendly profile pages. See INSTALL.txt for details.
+        * Renamed the node print template from print.tpl.php to print.node.tpl.php
+July 14, 2005
+        Commited my patch from
+          http://drupal.org/node/25458
+        with permission of the maintainer.
+June 21, 2005
+        Added German translation.
+June 1, 2005
+        - Brazilian Portuguese Translation of print.module
+        - Added print.tpl.php strings
+April 26, 2005
+        Updated print.pot file.
+February 14, 2005
+        km - corrected printing of source URL
+        km - changed the syntax of some lines to pass code-style.pl checks
+January 28, 2005
+        km - removed hint on site logo
+        km - changed strings back to 'printer friendly page'
+January 28, 2005
+        km - introduced printer friendly icon
+January 26, 2005
+        km - changed line numbers and added strings from print.tpl.php
+        km - changed strings, added strings from print.tpl.php
+        km - included changes from HEAD
+        km - changed link
+        km - improved layout and localized strings
+January 25, 2005
+        km - honor themes' global settings for "Display post information"
+        km - print_link() checks if page is a book
+        km - changed maintainer
+November 25, 2004
+        * Made CSS import work
+November 15, 2004
+        created pot-file with extractor.php and added dutch translation
+November 12, 2004
+        added CUSTOMIZATION
+November 5, 2004
+        Taking over maintainance
+October 30, 2004
+        * Created a print.tpl.php template file to give site admins control of what node parts this module renders and how the pages are structured. This feature, combined with the custom print stylesheet option, gives max freedom in rendering print friendly pages.
+        * Created a print.tpl.php template file to give site admins control of what node parts this module renders and how the pages are structured. This feature, combined with the custom print stylesheet option, gives max freedom in rendering print friendly pages.
+October 28, 2004
+        * Generate printer friendly pages for all node types.  Features include the ability to list $node->body URL references at the end of the page, custom print stylesheet and choosing which node elements to display.
+January 9, 2002
+      print.module- initial commit.
+      - attempted to fix the bugs with the chatbox module. Feedback requested.
+      - need some installation instructions. Anyone?
+      file print.module was initially added on branch DRUPAL-3-0.
+October 19, 2001
+      file LICENSE was initially added on branch DRUPAL-3-0.

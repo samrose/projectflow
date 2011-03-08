@@ -1,0 +1,5 @@
+; $Id: notifications_group.info,v 1.1 2008/01/21 22:29:36 jareyero Exp $
+name = Organic Groups Notifications
+description = Allows users to subscribe to content on groups.
+package = "Notifications"
+dependencies = notifications notifications_content og

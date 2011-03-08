@@ -1,0 +1,31 @@
+<?php
+// $Id: tokenauth.install,v 1.3 2007/10/23 01:57:51 weitzman Exp $
+
+// TODO: postgres
+function tokenauth_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {tokenauth_tokens} (
+        uid int(11) NOT NULL,
+        token varchar(50) NOT NULL,
+        PRIMARY KEY  (token),
+        UNIQUE KEY (uid)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */;");
+  }
+
+  // give an initial token to all
+  $sql = 'SELECT uid FROM {users}';
+  $result = db_query($sql);
+  while ($row = db_fetch_object($result)) {
+    $sql = "INSERT INTO {tokenauth_tokens} (uid, token) VALUES (%d, '%s')";
+    db_query($sql, $row->uid, user_password());
+  }
+}
+
+function tokenauth_uninstall() {
+  db_query('DROP TABLE {tokenauth_tokens}');
+  variable_del('tokenauth_length');
+  variable_del('tokenauth_pages');
+  variable_del('tokenauth_reset');
+}

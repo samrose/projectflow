@@ -1,0 +1,5 @@
+; $Id: print_pdf.info,v 1.2.2.2 2008/10/02 22:22:59 jcnventura Exp $
+name = "PDF version"
+description = "Adds the capability to export pages as PDF."
+dependencies = print
+package = "Printer, e-mail and PDF versions"

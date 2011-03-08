@@ -1,0 +1,1613 @@
+<?php
+// $Id: versioncontrol_fakevcs.module,v 1.46.2.1 2008/02/19 01:29:00 jpetso Exp $
+/**
+ * @file
+ * FakeVCS backend for Version Control API -
+ * An example module illustrating how to write a VCS backend.
+ *
+ * Copyright 2007 by Jakob Petsovits ("jpetso", http://drupal.org/user/56020)
+ */
+
+// Update methods.
+define('VERSIONCONTROL_FAKEVCS_UPDATE_CRON',   0);
+define('VERSIONCONTROL_FAKEVCS_UPDATE_SCRIPT', 1);
+
+// The admin pages.
+include_once(drupal_get_path('module', 'versioncontrol_fakevcs') .'/versioncontrol_fakevcs.admin.inc');
+
+/**
+ * Implementation of hook_versioncontrol_backends().
+ *
+ * @return
+ *   A structured array containing information about this backend, wrapped
+ *   in a structured array. Array key is the unique string identifier of
+ *   the backend. The corresponding array values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   - 'name': The user-visible name of the VCS.
+ *   - 'description': A short description of the backend, if possible not
+ *        longer than one or two sentences.
+ *   - 'capabilities': An array listing optional capabilities, in addition to
+ *        the required functionality like retrieval of detailed commit
+ *        information. Array values can be an arbitrary combination
+ *        of VERSIONCONTROL_CAPABILITY_* values. If no additional capabilities
+ *        are supported by the backend, this array will be empty.
+ *   - 'flags': An array listing which tables should be managed by
+ *        Version Control API instead of doing it manually in the backend.
+ *        Array values can be an arbitrary combination of VERSIONCONTROL_FLAG_*
+ *        values. If no array additions should be automatically managed,
+ *        this array will be empty.
+ */
+function versioncontrol_fakevcs_versioncontrol_backends() {
+  // Our example VCS is called FakeVCS, and supports all possible capabilities.
+
+  return array(
+    // The array key is up to 8 characters long, and used as unique identifier
+    // for this VCS, in functions, URLs and in the database.
+    'fakevcs' => array(
+      // The user-visible name of the VCS.
+      'name' => 'FakeVCS',
+
+      // A short description of the VCS, if possible not longer than one or two sentences.
+      'description' => t('FakeVCS is a version control system that is specifically capable in doing everything that any other version control system might ever do.'),
+
+      // A list of optional capabilities, in addition to the required retrieval
+      // of detailed commit information. All allowed values are listed below.
+      'capabilities' => array(
+        // Able to cancel commits if the committer lacks permissions
+        // to commit to specific paths and/or branches.
+        VERSIONCONTROL_CAPABILITY_COMMIT_RESTRICTIONS,
+
+        // Able to cancel branch or tag assignments if the committer lacks
+        // permissions to create/update/delete those.
+        VERSIONCONTROL_CAPABILITY_BRANCH_TAG_RESTRICTIONS,
+
+        // Able to retrieve a file or its revision number based on a global
+        // revision identifier.
+        VERSIONCONTROL_CAPABILITY_ATOMIC_COMMITS,
+      ),
+
+      // An array listing which tables should be managed by Version Control API
+      // instead of doing it manually in the backend.
+      // All allowed values are listed below.
+      'flags' => array(
+        // versioncontrol_insert_repository() will automatically insert
+        // array elements from $repository['[xxx]_specific'] into
+        // {versioncontrol_[xxx]_repositories} and versioncontrol_get_repositories()
+        // will automatically fetch it from there.
+        VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
+
+        // versioncontrol_insert_commit() will automatically insert
+        // array elements from $commit['[xxx]_specific'] into
+        // {versioncontrol_[xxx]_commits} and versioncontrol_get_commits()
+        // will automatically fetch it from there.
+        VERSIONCONTROL_FLAG_AUTOADD_COMMITS,
+      ),
+    ),
+
+    // More backend entries are possible - modules probably won't need this,
+    // but let's still provide the opportunity to do so, for consistency
+    // with similar hooks from other modules and easier merging of the arrays.
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_alter_repositories():
+ * Add VCS specific repository data into a $repository['[xxx]_specific'] array.
+ * By convention, this function only adds data in this specific element
+ * and doesn't modify other parts of the repository array.
+ *
+ * Also, this function is optional for backend modules to implement. If you
+ * don't need custom additions to the repositories, just don't implement it.
+ *
+ * @param $repositories
+ *   The repositories for which this backend module needs to retrieve
+ *   additional repository data. This is an array like the one returned by
+ *   versioncontrol_get_repositories(), and even the '[xxx]_specific' arrays
+ *   already exist. (If the VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES flag
+ *   has been set by this module, it may even be filled with values already.)
+ * @param $fakevcs_specific_constraints
+ *   An array of FakeVCS specific filter constraints which were passed to
+ *   versioncontrol_get_commits(). Say, if FakeVCS supported modules like
+ *   the CVS ones, the array would maybe contain a 'modules' constraint
+ *   for filtering by module.
+ */
+function versioncontrol_fakevcs_alter_repositories(&$repositories, $fakevcs_specific_constraints = array()) {
+  foreach ($repositories as $repo_id => $repository) {
+    // Retrieve our own custom stuff.
+    $additions = array(
+      'modules' => array('drupal', 'contributions'),
+    );
+
+    // Filter out commits that don't match the given constraints.
+    if (isset($fakevcs_specific_constraints['modules'])) {
+      foreach ($fakevcs_specific_constraints['modules'] as $module_constraint) {
+        if (!in_array($module_constraint, $additions['modules'])) {
+          unset($repositories[$repo_id]);
+          continue;
+        }
+      }
+    }
+
+    // Merge the additions into the existing commit array.
+    $repositories[$repo_id]['fakevcs_specific'] = array_merge(
+      $repository['fakevcs_specific'], $additions
+    );
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_alter_commits():
+ * Add VCS specific repository data into a $commit['[xxx]_specific'] array,
+ * and/or unset commits that don't match VCS specific filter constraints.
+ * By convention, this function only adds data in this specific element
+ * and doesn't modify other parts of the commit array.
+ *
+ * Version Control API doesn't filter commits by backend before passing them
+ * to this function, so make sure you check each $commit['repository']['vcs']
+ * property before messing with this specific commit.
+ *
+ * Also, this function is optional for backend modules to implement. If you
+ * don't need custom commit additions or constraints, just don't implement it.
+ *
+ * @param $commits
+ *   The unfiltered commits retrieved by versioncontrol_get_commits(), and
+ *   even the '[xxx]_specific' arrays already exist. (If the
+ *   VERSIONCONTROL_FLAG_AUTOADD_COMMITS flag has been set by this module,
+ *   it may even be filled with values already.)
+ * @param $fakevcs_specific_constraints
+ *   An array of FakeVCS specific filter constraints which were passed to
+ *   versioncontrol_get_commits(). Say, if FakeVCS supported modules like
+ *   the CVS ones, the array would maybe contain a 'modules' constraint
+ *   for filtering by module.
+ */
+function versioncontrol_fakevcs_alter_commits(&$commits, $fakevcs_specific_constraints = array()) {
+  foreach ($commits as $key => $commit) {
+    // Disregard commits from other backends.
+    if ($commit['repository']['vcs'] != 'fakevcs') {
+      continue;
+    }
+
+    // Retrieve our own custom stuff.
+    $additions = array(
+      'branch' => 'HEAD',
+      'module' => 'contrib',
+    );
+
+    // Filter out commits that don't match the given constraints.
+    if (isset($fakevcs_specific_constraints['modules'])) {
+      if (!in_array($additions['module'], $fakevcs_specific_constraints['modules'])) {
+        unset($commits[$key]);
+        continue;
+      }
+    }
+
+    // Merge the additions into the existing commit array.
+    $commits[$key]['fakevcs_specific'] = array_merge(
+      $commit['fakevcs_specific'], $additions
+    );
+  }
+}
+
+
+/**
+ * Implementation of [versioncontrol_backend]_get_commit_actions():
+ * Retrieve detailed information about what happened in a single commit.
+ *
+ * @param $commit
+ *   The commit whose actions should be retrieved.
+ *
+ * @return
+ *   A structured array containing the exact details of what happened to
+ *   each item in this commit. Array keys are the current/new paths, also for
+ *   VERSIONCONTROL_ACTION_DELETED actions even if the file actually doesn't
+ *   exist anymore. The corresponding array values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   - 'action': Specifies how the item was modified.
+ *        One of the predefined VERSIONCONTROL_ACTION_* values.
+ *   - 'modified': Boolean value, specifies if a file was modified in addition
+ *        to the other action in the 'action' element of the array.
+ *        Only exists for the VERSIONCONTROL_ACTION_MOVED
+ *        and VERSIONCONTROL_ACTION_COPIED actions.
+ *   - 'current item': The updated state of the modified item.
+ *        Exists for all actions except VERSIONCONTROL_ACTION_DELETED.
+ *   - 'source items': An array with the previous state(s) of the modified item.
+ *        Exists for all actions except VERSIONCONTROL_ACTION_ADDED.
+ *
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ */
+function versioncontrol_fakevcs_get_commit_actions($commit) {
+  // Assuming $commit is a single commit array that looks like this:
+  $commit = array(
+    // The operation id, a simple running number. Doesn't have any specific
+    // meaning, but is necessary for indexing and joining tables.
+    'vc_op_id' => 2345,
+    // Commits, tag operations and branch operations share the same basic
+    // structure and can occur side by side in operation arrays. For commits,
+    // 'type' is always VERSIONCONTROL_OPERATION_COMMIT.
+    'type' => VERSIONCONTROL_OPERATION_COMMIT,
+    // The repository that was affected by this commit.
+    'repository' => $affected_repository,
+    // The time when the commit was executed, in Unix timestamp format.
+    'date' => time(),
+    // User id of the committer's Drupal user account.
+    // 0 if no corresponding account exists.
+    'uid' => $user->uid,
+    // The committer's username known to the repository itself. In most cases
+    // this will probably be the name of the committer's Unix user account.
+    'username' => 'jpetso',
+    // The deepest-level directory in the repository that is common to
+    // all the changed items in this commit.
+    'directory' => '/',
+    // The commit message, which is expected to span one or more lines.
+    'message' => 'All kinds of demonstrative changes.',
+    // The revision identifier of the commit, in the VCS's proprietary format -
+    // running number, SHA-1 hash, or whatever. If there is no single revision
+    // identifier for the whole commit (which should only be the case for CVS)
+    // then the value for this key is set to NULL.
+    'revision' => '404', // for this commit, let's assume this is an SVN repository
+  );
+
+  return array(
+    // VERSIONCONTROL_ACTION_ADDED action: contains 'action' and 'current item'
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.module' => array(
+      'action'       => VERSIONCONTROL_ACTION_ADDED,
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol.module',
+        'revision' => '404',
+      ),
+    ),
+    // VERSIONCONTROL_ACTION_MODIFIED action:
+    // contains 'action, 'current item' and exacly one piece of 'source items'
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.install' => array(
+      'action'       => VERSIONCONTROL_ACTION_MODIFIED,
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol.install',
+        'revision' => '404',
+      ),
+      'source items' => array(
+        array(
+          'type'     => VERSIONCONTROL_ITEM_FILE,
+          'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol.install',
+          'revision' => '354',
+        ),
+      ),
+    ),
+    // VERSIONCONTROL_ACTION_DELETED action:
+    // contains 'action' and exacly one piece of 'source items'
+    '/branches/sandbox/jpetso/versioncontrol-notes.txt' => array(
+      'action'            => VERSIONCONTROL_ACTION_DELETED,
+      'source items' => array(
+        array(
+          'type'     => VERSIONCONTROL_ITEM_FILE,
+          'path'     => '/branches/sandbox/jpetso/versioncontrol-notes.txt',
+          'revision' => '42',
+        ),
+      ),
+    ),
+    // VERSIONCONTROL_ACTION_MOVED action:
+    // contains 'action', 'current item' and exacly one piece of 'source items'
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.info' => array(
+      'action'            => VERSIONCONTROL_ACTION_MOVED,
+      'modified'          => TRUE,
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol.info',
+        'revision' => '404',
+      ),
+      'source items' => array(
+        array(
+          'type'     => VERSIONCONTROL_ITEM_FILE,
+          'path'     => '/branches/sandbox/jpetso/versioncontrol.info',
+          'revision' => '42',
+        ),
+      ),
+    ),
+    // VERSIONCONTROL_ACTION_COPIED action:
+    // contains 'action', 'current item' and exacly one piece of 'source items'
+    '/trunk/contributions/modules/versioncontrol/README.txt' => array(
+      'action'            => VERSIONCONTROL_ACTION_COPIED,
+      'modified'          => FALSE,
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/trunk/contributions/modules/versioncontrol/README.txt',
+        'revision' => '404',
+      ),
+      'source items' => array(
+        array(
+          'type'     => VERSIONCONTROL_ITEM_FILE,
+          'path'     => '/branches/sandbox/jpetso/README-template.txt',
+          'revision' => '220',
+        ),
+      ),
+    ),
+    // VERSIONCONTROL_ACTION_MERGED action: contains 'action',
+    // 'current item' and an arbitrary number of 'source items'
+    '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module' => array(
+      'action'            => VERSIONCONTROL_ACTION_MERGED,
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module',
+        'revision' => '404',
+      ),
+      'source items' => array(
+        array(
+          'type'     => VERSIONCONTROL_ITEM_FILE,
+          'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module',
+          'revision' => '403',
+        ),
+        array(
+          'type'     => VERSIONCONTROL_ITEM_FILE,
+          'path'     => '/branches/work/versioncontrol-improve-data-structures/data-structures.php',
+          'revision' => '198',
+        ),
+      ),
+    ),
+    // VERSIONCONTROL_ITEM_DIRECTORY type actions can occur with 'action' being
+    // one of VERSIONCONTROL_ACTION_MOVED, VERSIONCONTROL_ACTION_COPIED
+    // and VERSIONCONTROL_ACTION_DELETED.
+    // Other than that, same style as VERSIONCONTROL_ITEM_FILE actions.
+    '/branches/5.x-1.x/contributions/modules/cvslog' => array(
+      'action'       => VERSIONCONTROL_ACTION_COPIED,
+      'modified'     => FALSE, // for directories, this may always be false
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/branches/5.x-1.x/contributions/modules/cvslog',
+        'revision' => '404',
+      ),
+      'source items' => array(
+        array(
+          'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+          'path'     => '/trunk/contributions/modules/cvslog',
+          'revision' => '397',
+        ),
+      ),
+    ),
+    // one more VERSIONCONTROL_ITEM_DIRECTORY example
+    '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+      'action'   => VERSIONCONTROL_ACTION_ADDED,
+      'current item' => array(
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs',
+        'revision' => '404',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_short_revision_identifier():
+ * Return a shortened version of the revision identifier, as plaintext.
+ * This is used by versioncontrol_format_commit_identifier()
+ * and versioncontrol_format_item_revision().
+ *
+ * This function is optional for VCS backends to implement. If it doesn't exist,
+ * the API module's themeing functions will use a default return value.
+ *
+ * @param $revision
+ *   The 'revision' property of a commit or item array,
+ *   e.g. '12345' for Subversion or an SHA-1 hash for a distributed VCS.
+ */
+function versioncontrol_fakevcs_format_short_revision_identifier($revision) {
+  // Suppose we're a distributed VCS backend and have an SHA-1 hash:
+  // $commit['revision'] == '30581e4ec3347d1294ec05a91eec1a8588e5993c'
+  // Let's return only the first 12 characters of the commit identifier,
+  // like Mercurial (including hgweb) does by default.
+  return substr($revision, 0, 12);
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_commit_statistics():
+ * Retrieve general statistics about what happened in a single commit. For more granular
+ * details about what happened in a single commit, use versioncontrol_get_commit_actions.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_commit_statistics')
+ * if the particular backend actually implements it.
+ *
+ * @param $commit
+ *   The commit to retrieve statistics about.
+ * @param $commit_actions
+ *   The commit actions array belonging to the above commit. Can be passed by
+ *   the caller if the caller already has the actions, or can be left absent
+ *   and they will be automatically obtained.
+ *
+ * @return
+ *   A structured array containing general statistics about this commit.
+ *   The array will consist of elements with the following keys:
+ *
+ *   - 'lines_added': Total number of lines added during this commit.
+ *   - 'lines_removed': Total number of lines removed during this commit.
+ *   - 'action_count': Total number of actions within this commit.
+ *   - 'per_action_statistics': An array containing statistics on individual
+ *        actions. Array keys are the current/new paths (just as with
+ *        versioncontrol_get_commit_actions()).
+ *
+ *   The array values of the 'per_action_statistics' element are again
+ *   structured arrays and consist of elements with the following keys:
+ *
+ *   - 'lines_added': Number of lines added to this item.
+ *   - 'lines_removed': Number of lines removed to this item.
+ */
+function versioncontrol_fakevcs_get_commit_statistics($commit, $commit_actions = NULL) {
+  // Assuming $commit is a single commit array that looks like this:
+  $commit = array(
+    'vc_op_id' => 2345,
+    'type' => VERSIONCONTROL_OPERATION_COMMIT,
+    'repository' => $affected_repository,
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/',
+    'message' => 'All kinds of demonstrative changes.',
+    'revision' => '404', // for this commit, let's assume this is an SVN repository
+  );
+
+  // Retrieve the commit actions array if the caller didn't provide it.
+  if ($commit_actions == NULL) {
+    $commit_actions = versioncontrol_fakevcs_get_commit_actions($commit);
+  }
+  return array(
+    'lines_added' => 30, // 15 + 5 + 7 + 3
+    'lines_removed' => 20, // 3 + 17
+    'action_count' => 8,
+    'per_action_statistics' => array(
+      '/trunk/contributions/modules/versioncontrol/versioncontrol.module' => array(
+        'lines_added' => 15,
+        'lines_removed' => 0,
+      ),
+      '/trunk/contributions/modules/versioncontrol/versioncontrol.install' => array(
+        'lines_added' => 5,
+        'lines_removed' => 3,
+      ),
+      '/branches/sandbox/jpetso/versioncontrol-notes.txt' => array(
+        'lines_added' => 0,
+        'lines_removed' => 17,
+      ),
+      '/trunk/contributions/modules/versioncontrol/versioncontrol.info' => array(
+        'lines_added' => 0,
+        'lines_removed' => 0,
+      ),
+      '/trunk/contributions/modules/versioncontrol/README.txt' => array(
+        'lines_added' => 7,
+        'lines_removed' => 0,
+      ),
+      '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module' => array(
+        'lines_added' => 0,
+        'lines_removed' => 0,
+      ),
+      '/branches/5.x-1.x/contributions/modules/cvslog' => array(
+        'lines_added' => 3,
+        'lines_removed' => 0,
+      ),
+      '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+        'lines_added' => 0,
+        'lines_removed' => 0,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_directory_item():
+ * Retrieve the item of the deepest-level directory in the repository that is
+ * common to all the changed/branched/tagged items in a commit,
+ * branch operation or tag operation. In other words, this function
+ * gets you the item for $operation['directory'].
+ *
+ * @param $operation
+ *   The commit, branch operation or tag operation whose deepest-level
+ *   changed/branched/tagged directory should be retrieved.
+ *
+ * @return
+ *   The requested directory item. Item values are structured arrays and
+ *   consist of elements with the following keys:
+ *
+ *   - 'type': Specifies the item type, which in this case can only be
+ *        VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the directory, which will be the same
+ *        as $operation['directory'].
+ *   - 'revision': The (file-level) revision when the item was last changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier
+ *        of the respective version control system.)
+ */
+function versioncontrol_fakevcs_get_directory_item($operation) {
+  // Assuming $operation is a single commit array that looks like this:
+  $operation = array(
+    'vc_op_id' => 2345,
+    'type' => VERSIONCONTROL_OPERATION_COMMIT,
+    'repository' => $drupal_cvs,
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/contributions/modules/versioncontrol/versioncontrol_fakevcs',
+    'message' => 'All kinds of demonstrative changes.',
+    'revision' => '', // for this commit, let's assume this is a CVS repository
+    'fakevcs_specific' => array('selected_branch_name' => 'DRUPAL-5--1'),
+  );
+
+  return array(
+    'type' => VERSIONCONTROL_ITEM_DIRECTORY,
+    'path' => $operation['directory'],
+    'revision' => '',
+    'fakevcs_specific' => array('selected_branch_name' => 'DRUPAL-5--1'),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_commit_branches():
+ * Retrieve the branches that have been affected by the given commit.
+ *
+ * @return
+ *   An array of strings that identify a branch in the respective repository,
+ *   or an empty array if no branches were affected at all.
+ */
+function versioncontrol_fakevcs_get_commit_branches($commit) {
+  // How CVS would probably do it
+  return array('DRUPAL-5--1');
+  // How SVN could also do it
+  return array('trunk', '5.x-1.x');
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_branched_items():
+ * Retrieve the set of items that were affected by a branch operation.
+ *
+ * @param $branch
+ *   The branch operation whose items should be retrieved. This is an array
+ *   like the one returned by versioncontrol_get_branch_operation().
+ *
+ * @return
+ *   An array of all items that were affected by the branching operation.
+ *   An empty result array means that the whole repository has been branched.
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - 'source branch': Optional, may be set by the backend if the
+ *        source branch (the one that this one branched off) can be retrieved.
+ *        If given, this is a string with the original branch name.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ */
+function versioncontrol_fakevcs_get_branched_items($branch) {
+  // How CVS could do it, assuming $branch looks like this:
+  $branch = array(
+    'vc_op_id' => 17,
+    'type' => VERSIONCONTROL_OPERATION_BRANCH,
+    'branch_name' => 'DRUPAL-5--1',
+    'action' => VERSIONCONTROL_ACTION_ADDED, // the branch was created
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/contributions/modules/versioncontrol_cvs',
+    'repository' => $affected_repository,
+    'cvs_specific' => array(
+      'branch_id' => $drupal_5__1_branch_id,
+    ),
+  );
+
+  return array(
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/contributions/modules/versioncontrol_cvs/versioncontrol_cvs.module',
+      'revision'      => '1.66',
+      'source branch' => 'HEAD',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/contributions/modules/versioncontrol_cvs/xcvs/xcvs-taginfo.php',
+      'revision'      => '1.23.2.42',
+      'source branch' => 'DRUPAL-4-7',
+    ),
+  );
+
+  // How Subversion could do it, assuming $branch looks like this:
+  $branch = array(
+    'vc_op_id' => 17,
+    'type' => VERSIONCONTROL_OPERATION_BRANCH,
+    'branch_name' => '5.x-1.x',
+    'action' => VERSIONCONTROL_ACTION_ADDED, // the branch was created
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/branches/5.x-1.x/contributions/modules',
+    'repository' => $affected_repository,
+    'svn_specific' => array(),
+  );
+
+  return array(
+    array(
+      'type'          => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'          => '/branches/5.x-1.x/contributions/modules/versioncontrol_svn',
+      'revision'      => '404',
+      'source branch' => 'trunk',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/branches/5.x-1.x/contributions/modules/versioncontrol_svn/versioncontrol_svn.module',
+      'revision'      => '404',
+      'source branch' => 'trunk',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'          => '/branches/5.x-1.x/contributions/modules/versioncontrol_svn/xsvn',
+      'revision'      => '404',
+      'source branch' => 'trunk',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/branches/5.x-1.x/contributions/modules/versioncontrol_svn/xsvn/xsvn-precommit.php',
+      'revision'      => '404',
+      'source branch' => 'trunk',
+    ),
+  );
+
+  // Or, how git, Mercurial and Bazaar could do it:
+  return array();
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_tagged_items():
+ * Retrieve the set of items that were affected by a tag operation.
+ *
+ * @param $tag
+ *   The tag operation whose items should be retrieved. This is an array
+ *   like the one returned by versioncontrol_get_tag_operation().
+ *
+ * @return
+ *   An array of all items that were affected by the tagging operation.
+ *   An empty result array means that the whole repository has been tagged.
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - 'source branch': Optional, may be set by the backend if the
+ *        source branch (the one that this tag comes from) can be retrieved.
+ *        If given, this is a string with the original branch name.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ */
+function versioncontrol_fakevcs_get_tagged_items($tag) {
+  // How CVS could do it, assuming $tag looks like this:
+  $tag = array(
+    'vc_op_id' => 11,
+    'type' => VERSIONCONTROL_OPERATION_TAG,
+    'tag_name' => 'DRUPAL-5--1-0',
+    'action' => VERSIONCONTROL_ACTION_ADDED, // the tag was created
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/contributions/modules/versioncontrol_cvs',
+    'repository' => $affected_repository,
+    'cvs_specific' => array(),
+  );
+
+  return array(
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/contributions/modules/versioncontrol_cvs/versioncontrol_cvs.module',
+      'revision'      => '1.66',
+      'source branch' => 'HEAD',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/contributions/modules/versioncontrol_cvs/xcvs/xcvs-taginfo.php',
+      'revision'      => '1.23.2.42',
+      'source branch' => 'DRUPAL-5--1',
+    ),
+  );
+
+  // How Subversion could do it, assuming $tag looks like this:
+  $tag = array(
+    'vc_op_id' => 11,
+    'type' => VERSIONCONTROL_OPERATION_TAG,
+    'tag_name' => '5.x-1.0',
+    'action' => VERSIONCONTROL_ACTION_ADDED, // the tag was created
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/tags/5.x-1.x/5.x-1.0/contributions/modules',
+    'repository' => $affected_repository,
+    'svn_specific' => array(),
+  );
+
+  return array(
+    array(
+      'type'          => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'          => '/tags/5.x-1.x/5.x-1.0/contributions/modules/versioncontrol_svn',
+      'revision'      => '502',
+      'source branch' => '5.x-1.x',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/tags/5.x-1.x/5.x-1.0/contributions/modules/versioncontrol_svn/versioncontrol_svn.module',
+      'revision'      => '502',
+      'source branch' => '5.x-1.x',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'          => '/tags/5.x-1.x/5.x-1.0/contributions/modules/versioncontrol_svn/xsvn',
+      'revision'      => '502',
+      'source branch' => '5.x-1.x',
+    ),
+    array(
+      'type'          => VERSIONCONTROL_ITEM_FILE,
+      'path'          => '/tags/5.x-1.x/5.x-1.0/contributions/modules/versioncontrol_svn/xsvn/xsvn-precommit.php',
+      'revision'      => '502',
+      'source branch' => '5.x-1.x',
+    ),
+  );
+
+  // Or, how git, Mercurial and Bazaar could do it:
+  return array();
+}
+
+
+/**
+ * Implementation of [versioncontrol_backend]_get_current_item_branch():
+ * Retrieve the current branch that this item is in. If this item was part of
+ * the result of versioncontrol_get_commit_actions(), this will probably be
+ * the branch that this item was committed to. The main branch ('HEAD',
+ * 'trunk', 'master' or however it is called in the respective VCS) is also
+ * a valid branch and should be expected as return value.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose current branch should be retrieved.
+ *
+ * @return
+ *   A string containing the current item branch, or NULL if no branch
+ *   is known or applicable.
+ */
+function versioncontrol_fakevcs_get_current_item_branch($repository, $item) {
+  // How CVS would probably do it
+  return 'DRUPAL-5--1';
+  // How SVN could also do it
+  return 'trunk';
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_current_item_tag():
+ * Retrieve the current tag of this item.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose current branch should be retrieved.
+ *
+ * @return
+ *   A tag operation array like the return value
+ *   of versioncontrol_get_tag_operation(), or NULL if no tag
+ *   is known or applicable.
+ */
+function versioncontrol_fakevcs_get_current_item_tag($repository, $item) {
+  // How CVS would probably do it. (The information itself is either fetched
+  // from the database, or has been stored somewhere in the item, or is
+  // calculated on the fly.)
+  $tag = array(
+    'vc_op_id' => 11,
+    'type' => VERSIONCONTROL_OPERATION_TAG,
+    'tag_name' => 'DRUPAL-5--1-1',
+    'action' => VERSIONCONTROL_ACTION_ADDED, // the tag was created
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/contributions/modules/versioncontrol_cvs',
+    'repository' => $affected_repository,
+    'cvs_specific' => array(),
+  );
+  return $tag;
+
+  // How Subversion could also do it.
+  $tag = array(
+    'vc_op_id' => 11,
+    'type' => VERSIONCONTROL_OPERATION_TAG,
+    'tag_name' => '5.x-1.0',
+    'action' => VERSIONCONTROL_ACTION_ADDED, // the tag was created
+    'date' => time(),
+    'uid' => $user->uid,
+    'username' => 'jpetso',
+    'directory' => '/tags/5.x-1.x/5.x-1.0/contributions/modules',
+    'repository' => $affected_repository,
+    'svn_specific' => array(),
+  );
+  return $tag;
+}
+
+/**
+ * Implementation of [vcs_backend]_get_parent_item():
+ * Retrieve the parent (directory) item of a given item.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose parent should be retrieved.
+ * @param $parent_path
+ *   NULL if the direct parent of the given item should be retrieved,
+ *   or a parent path that is further up the directory tree.
+ *
+ * @return
+ *   The parent directory item at the same revision as the given item.
+ *   If $parent_path is not set and the item is already the topmost one
+ *   in the repository, the item is returned as is. It also stays the same
+ *   if $parent_path is given and the same as the path of the given item.
+ *   If the given directory path does not correspond to a parent item,
+ *   NULL is returned.
+ */
+function versioncontrol_fakevcs_get_parent_item($repository, $item, $parent_path) {
+  if (!isset($parent_path)) {
+    $item['path'] = dirname($item['path']);
+    return $item;
+  }
+  else if (strpos($item['path'] .'/', $parent_path .'/') !== FALSE) {
+    $item['path'] = $parent_path;
+    return $item;
+  }
+  return NULL;
+}
+
+
+/**
+ * Implementation of [versioncontrol_backend]_get_all_item_branches():
+ * Retrieve all branches that exist for the given item, and how this item
+ * is named there. The main branch ('HEAD', 'trunk', 'master' or however it is
+ * called in the respective VCS) is also included in the result.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_all_item_branches')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose set of branches should be retrieved.
+ *
+ * @return
+ *   A structured array that looks like
+ *     array(
+ *       $branch1_name => $branch1_item,
+ *       $branch2_name => $branch2_item,
+ *       ...
+ *     ).
+ *
+ *   The corresponding item values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was last changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ *
+ *   An empty array is returned if there are no branches for this item.
+ *   NULL is returned if the given item is not inside the repository at the
+ *   time of 'revision'.
+ */
+function versioncontrol_fakevcs_get_all_item_branches($repository, $item) {
+  // How CVS would probably do it, if for example
+  // $item['path'] == '/contributions/modules/versioncontrol/versioncontrol.module':
+  return array(
+    'HEAD' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+      'revision' => '1.23',
+      'fakevcs_specific' => array('selected_branch_name' => 'HEAD'),
+    ),
+    'DRUPAL-5--1' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+      'revision' => '1.23.2.42',
+      'fakevcs_specific' => array('selected_branch_name' => 'DRUPAL-5--1'),
+    ),
+  );
+  // How SVN could also do it, if for example
+  // $item['path'] == '/trunk/contributions/modules/versioncontrol':
+  return array(
+    'trunk' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/trunk/contributions/modules/versioncontrol',
+      'revision' => '23',
+    ),
+    '5.x-1.x' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/branches/5.x-1.x/contributions/modules/versioncontrol',
+      'revision' => '42',
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_all_item_tags():
+ * Retrieve all tags that exist for the given item $path, and how this item
+ * is named there.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_all_item_tags')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose history should be retrieved.
+ *
+ * @return
+ *   A structured array that looks like
+ *     array(
+ *       $tag1_name => $tag1_item,
+ *       $tag2_name => $tag2_item,
+ *       ...
+ *     ).
+ *
+ *   The corresponding item values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was last changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ *
+ *   An empty array is returned if there are no tags for this item.
+ *   NULL is returned if the given item is not inside the repository at the
+ *   time of 'revision'.
+ */
+function versioncontrol_fakevcs_get_all_item_tags($repository, $item) {
+  // How CVS would probably do it, if for example
+  // $item['path'] == '/contributions/modules/versioncontrol':
+  return array(
+    'DRUPAL-5--1-1' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol',
+      'revision' => '', // Right, it's a directory in CVS -> unversioned.
+                        // Files of course would indeed get a 'revision' entry.
+      'fakevcs_specific' => array('tag' => 'DRUPAL-5--1-1'),
+    ),
+    'DRUPAL-5--1-2' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol',
+      'revision' => '',
+      'fakevcs_specific' => array('tag' => 'DRUPAL-5--1-2'),
+    ),
+  );
+
+  // How SVN could also do it, if for example
+  // $item['path'] == '/tags/5.x-1.2/contributions/modules/versioncontrol/versioncontrol.module':
+  return array(
+    '5.x-1.1' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/tags/5.x-1.1/contributions/modules/versioncontrol/versioncontrol.module',
+      'revision' => '15',
+    ),
+    '5.x-1.2' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/tags/5.x-1.2/contributions/modules/versioncontrol/versioncontrol.module',
+      'revision' => '16',
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_item_history():
+ * Retrieve the revisions where the given item has been changed,
+ * in reverse chronological order.
+ *
+ * Only direct descendants or predecessors of this item will be retrieved.
+ * That means that history of the same item in a different (parallel) branch
+ * will not be returned, except if the given state of the item was moved/copied
+ * from there or goes back there in a more recent revision. In short, you'll
+ * not get "1.7" and "1.2.2.4" items side by side if it doesn't make sense.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_item_history')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose history should be retrieved.
+ *
+ * @return
+ *   An array containing the exact details of all item changes. Each element
+ *   of the array is a structured array consisting of elements with the
+ *   following keys:
+ *
+ *   - 'action': Specifies how the item was modified.
+ *        One of the predefined VERSIONCONTROL_ACTION_* values.
+ *   - 'modified': Boolean value, specifies if a file was modified in addition
+ *        to the other action in the 'action' element of the array.
+ *        Only exists for the VERSIONCONTROL_ACTION_MOVED
+ *        and VERSIONCONTROL_ACTION_COPIED actions.
+ *   - 'current item': The updated state of the modified item.
+ *        Exists for all actions except VERSIONCONTROL_ACTION_DELETED.
+ *   - 'source items': An array with the previous state(s) of the modified item.
+ *        Exists for all actions except VERSIONCONTROL_ACTION_ADDED.
+ *
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ *
+ *   NULL is returned if the given item is not under version control,
+ *   or was not under version control at the time of the given revision.
+ */
+function versioncontrol_get_item_history($repository, $item) {
+  // Assuming $item is an item array that looks like this:
+  $item = array(
+    'type'     => VERSIONCONTROL_ITEM_FILE,
+    'path'     => '/trunk/contributions/modules/versioncontrol/versioncontrol.info',
+    'revision' => '666',
+  );
+  // and $repository is some SVN repository.
+
+  return array(
+    array(
+      'action'       => VERSIONCONTROL_ACTION_MOVED,
+      'current item' => array(
+        'type'         => VERSIONCONTROL_ITEM_FILE,
+        'path'         => '/trunk/contributions/modules/versioncontrol/versioncontrol.info',
+        'revision'     => '404',
+      ),
+      'source items' => array(
+        array(
+          'type'       => VERSIONCONTROL_ITEM_FILE,
+          'revision'   => '42',
+          'path'       => '/branches/sandbox/jpetso/versioncontrol.info',
+        ),
+      ),
+      'modified'     => FALSE,
+    ),
+    array(
+      'action'       => VERSIONCONTROL_ACTION_ADDED,
+      'current item' => array(
+        'type'         => VERSIONCONTROL_ITEM_FILE,
+        'revision'     => '42',
+        'path'         => '/branches/sandbox/jpetso/versioncontrol.info',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_directory_contents():
+ * Retrieve the set of files and directories that exist at a specified revision
+ * in the given directory inside the repository.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_directory_contents')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the directory item is located in.
+ * @param $directory_item
+ *   The parent item of the the items that should be listed.
+ * @param $recursive
+ *   If FALSE, only the direct children of $path will be retrieved.
+ *   If TRUE, you'll get every single descendant of $path.
+ *
+ * @return
+ *   A structured item array containing the exact details of which items have
+ *   been inside the directory at the time of the commit, including the
+ *   directory itself. Array keys are the current/new paths.
+ *   The corresponding item values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was last changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ *
+ *   NULL is returned if the given item is not inside the repository,
+ *   or if it is not a directory item at all.
+ */
+function versioncontrol_fakevcs_get_directory_contents($repository, $directory_item, $recursive = FALSE) {
+  // Assuming $parent_item is an item array that looks like this:
+  $directory_item = array(
+    'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+    'path'     => '/trunk/contributions/modules/versioncontrol',
+    'revision' => '666',
+  );
+  // $repository is some SVN repository and $recursive == FALSE.
+
+  return array(
+    '/trunk/contributions/modules/versioncontrol' => array( // == rtrim($path, '/')
+      'type'      => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'      => '/trunk/contributions/modules/versioncontrol',
+      'revision'  => '502',
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.module' => array(
+      'type'      => VERSIONCONTROL_ITEM_FILE,
+      'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol.module',
+      'revision'  => '502',
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.info' => array(
+      'type'      => VERSIONCONTROL_ITEM_FILE,
+      'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol.info',
+      'revision'  => '404',
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.install' => array(
+      'type'      => VERSIONCONTROL_ITEM_FILE,
+      'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol.install',
+      'revision'  => '404',
+    ),
+    '/trunk/contributions/modules/versioncontrol/README.txt' => array(
+      'type'      => VERSIONCONTROL_ITEM_FILE,
+      'path'      => '/trunk/contributions/modules/versioncontrol/README.txt',
+      'revision'  => '404',
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+      'type'      => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs.txt',
+      'revision'  => '497',
+    ),
+  );
+
+  // Or the same thing in CVS - note that 'revision' is an empty string
+  // for directories, as CVS doesn't support versioned directories.
+  $directory_item = array(
+    'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+    'path'     => '/contributions/modules/versioncontrol',
+    'revision' => '',
+  );
+  // $repository is some CVS repository and $recursive == TRUE.
+
+  return array(
+    '/contributions/modules/versioncontrol' => array( // == rtrim($path, '/')
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol',
+      'revision' => '', // CVS doesn't track directory-level revisions
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol.module' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+      'revision' => '1.19',
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol.info' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol.info',
+      'revision' => '1.1',
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol.install' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol.install',
+      'revision' => '1.5',
+    ),
+    '/contributions/modules/versioncontrol/README.txt' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/README.txt',
+      'revision' => '1.1',
+    ),
+    '/contributions/modules/versioncontrol/fakevcs_backend' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol/fakevcs_backend',
+      'revision' => '',
+    ),
+    '/contributions/modules/versioncontrol/fakevcs_backend/fakevcs_backend.module' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE_DELETED, // only for non-atomic-commit VCSs (= CVS)
+      'path'     => '/contributions/modules/versioncontrol/fakevcs_backend/fakevcs_backend.module',
+      'revision' => '1.11', // last existing version
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs',
+      'revision' => '',
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module',
+      'revision' => '1.2',
+    ),
+  );
+
+  // And when an item comes in that has been marked with another branch or tag,
+  // then use that one instead of the main branch.
+  $directory_item = array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs',
+      'revision' => '',
+      'fakevcs_specific' => array('selected_branch_name' => 'DRUPAL-5--1'),
+    ),
+  // $repository is some CVS repository and $recursive == FALSE.
+
+  return array(
+    '/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+      'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs',
+      'revision' => '',
+      'fakevcs_specific' => array('selected_branch_name' => 'DRUPAL-5--1'),
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module' => array(
+      'type'     => VERSIONCONTROL_ITEM_FILE,
+      'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module',
+      'revision' => '1.2',
+      'fakevcs_specific' => array('selected_branch_name' => 'DRUPAL-5--1'),
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_file_contents():
+ * Retrieve the text or binary data of the given file in the specified commit.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_file_contents')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the file item is located in.
+ * @param $file_item
+ *   The file item whose contents should be retrieved.
+ *
+ * @return
+ *   A structured array that consists of elements with the following keys:
+ *
+ *   - 'file type': Specifies the file type, which is either
+ *       VERSIONCONTROL_FILE_TEXT or VERSIONCONTROL_FILE_BINARY.
+ *   - 'contents': The raw contents of the file.
+ *
+ *   NULL is returned if the given item is not under version control,
+ *   or was not under version control at the time of the given revision,
+ *   or if it is not a file item at all.
+ */
+function versioncontrol_fakevcs_get_file_contents($repository, $file_item) {
+  // In case the file is marked as text file:
+  return array(
+    'file type' => VERSIONCONTROL_FILE_TEXT,
+    'contents'  => $file_contents,
+  );
+
+  // In case the file is marked as binary file:
+  return array(
+    'file type' => VERSIONCONTROL_FILE_BINARY,
+    'contents'  => $file_contents,
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_file_annotation():
+ * Retrieve an array where each element represents a single line of the
+ * given file in the specified commit, annotated with the committer who last
+ * modified that line. Note that annotations are generally a quite slow
+ * operation, so expect this function to take a bit more time as well.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_file_annotation')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the file item is located in.
+ * @param $file_item
+ *   The file item whose annotation should be retrieved.
+ *
+ * @return
+ *   A structured array that consists of one element per line, with
+ *   line numbers as keys (starting from 1) and a structured array as values,
+ *   where each of them consists of elements with the following keys:
+ *
+ *   - 'username': The system specific VCS username of the last committer.
+ *   - 'line': The contents of the line, without linebreak characters.
+ *
+ *   NULL is returned if the given item is not under version control,
+ *   or was not under version control at the time of the given revision,
+ *   or if it is not a file item at all, or if it is marked as binary file.
+ */
+function versioncontrol_fakevcs_get_file_annotation($repository, $file_item) {
+  // In case the file is marked as text file:
+  return array(
+    1 => array(
+      'username' => 'dries',
+      'line'     => '<?php',
+    ),
+    2 => array(
+      'username' => 'jpetso',
+      'line'     => '// $Id: versioncontrol_fakevcs.module,v 1.46.2.1 2008/02/19 01:29:00 jpetso Exp $',
+    ),
+  );
+}
+
+
+
+/**
+ * Implementation of [versioncontrol_backend]_commit():
+ * Manage (insert or delete) additional commit data in the database.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom repository data (or you let the Version Control API manage it),
+ * just don't implement it.
+ *
+ * @param $op
+ *   Either 'insert' when the commit is in the process of being created,
+ *   or 'delete' if it will be deleted after this function has been called.
+ * @param $commit
+ *   A single commit array, like the ones returned
+ *   by versioncontrol_get_commits().
+ * @param $commit_actions
+ *   A structured array containing the exact details of what happened to
+ *   each item in this commit. The structure of this array is the same as
+ *   the return value of versioncontrol_get_commit_actions().
+ */
+function versioncontrol_fakevcs_commit($op, $commit, $commit_actions) {
+  // If nothing has to be stored in addition to the commit info that
+  // versioncontrol_insert_commit() stores by itself, this function
+  // doesn't have to be implemented by the backend.
+  // If you've got stuff like file tables or whatever, it may come in handy.
+  switch ($op) {
+    case 'insert':
+      foreach ($commit_actions as $path => $action) {
+        $revision = '';
+        $source_revision = '';
+
+        // If available, get item type and revision from the contained items.
+        if (isset($action['current item'])) {
+          $type = $action['current item']['type'];
+          $revision = $action['current item']['revision'];
+        }
+        else {
+          $type = $action['source items'][0]['type'];
+          $source_revision = $action['source items'][0]['revision'];
+        }
+
+        db_query(
+          "INSERT INTO {versioncontrol_fakevcs_item_revisions}
+          (vc_op_id, type, path, revision, action, source_revision)
+          VALUES (%d, %d, '%s', '%s', %d, %d)",
+          $commit['vc_op_id'], $type, $path, $revision, $action['action'],
+          $source_revision
+        );
+        break;
+
+    case 'delete':
+      db_query('DELETE FROM {versioncontrol_fakevcs_item_revisions}
+                WHERE vc_op_id = %d', $commit['vc_op_id']);
+      break;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_account():
+ * Manage (insert, update or delete) additional FakeVCS user account data
+ * in the database.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom repository data (or you let the Version Control API manage it),
+ * just don't implement it.
+ *
+ * @param $op
+ *   Either 'insert' when the account is in the process of being created,
+ *   or 'update' when username or VCS specific data change,
+ *   or 'delete' if it will be deleted after this function has been called.
+ * @param $uid
+ *   The Drupal user id corresponding to the VCS account.
+ * @param $username
+ *   The VCS specific username (a string).
+ * @param $repository
+ *   The repository where the user has its VCS account.
+ * @param $additional_data
+ *   An array of additional author information.
+ */
+function versioncontrol_fakevcs_account($op, $uid, $username, $repository, $additional_data = array()) {
+  $fakevcs_specific = $additional_data['fakevcs_specific'];
+
+  switch ($op) {
+    case 'insert':
+      if (!isset($fakevcs_specific) || !isset($fakevcs_specific['password'])) {
+        drupal_set_message(t('Error: no FakeVCS password given on account creation!'), 'error');
+        return;
+      }
+      db_query("INSERT INTO {versioncontrol_fakevcs_accounts}
+                (uid, repo_id, password)
+                VALUES (%d, %d, '%s')",
+                $uid, $repository['repo_id'], $fakevcs_specific['password']);
+      break;
+
+    case 'update':
+      if (!isset($fakevcs_specific) || !isset($fakevcs_specific['password'])) {
+        return; // the user didn't update the password in the process.
+      }
+      db_query("UPDATE {versioncontrol_fakevcs_accounts}
+                SET password = '%s'
+                WHERE uid = %d AND repo_id = %d",
+                $fakevcs_specific['password'], $uid, $repository['repo_id']);
+
+      if (!user_access('administer version control systems')) {
+        // Admins get "The account has been updated successfully" anyways.
+        drupal_set_message(t('The FakeVCS password has been updated successfully.'));
+      }
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {versioncontrol_fakevcs_accounts}
+                WHERE uid = %d AND repo_id = %d',
+                $uid, $repository['repo_id']);
+      break;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_repository():
+ * Manage (insert, update or delete) additional FakeVCS repository data
+ * in the database.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom repository data (or you let the Version Control API manage it),
+ * just don't implement it.
+ *
+ * @param $op
+ *   Either 'insert' when the repository has just been created, or 'update'
+ *   when repository name, root, URL backend or module specific data change,
+ *   or 'delete' if it will be deleted after this function has been called.
+ *
+ * @param $repository
+ *   The repository array containing the repository. It's a single
+ *   repository array like the one returned by versioncontrol_get_repository(),
+ *   so it consists of the following elements:
+ *
+ *   - 'repo_id': The unique repository id.
+ *   - 'name': The user-visible name of the repository.
+ *   - 'vcs': The unique string identifier of the version control system
+ *        that powers this repository.
+ *   - 'root': The root directory of the repository. In most cases,
+ *        this will be a local directory (e.g. '/var/repos/drupal'),
+ *        but it may also be some specialized string for remote repository
+ *        access. How this string may look like depends on the backend.
+ *   - 'authorization_method': The string identifier of the repository's
+ *        authorization method, that is, how users may register accounts
+ *        in this repository. Modules can provide their own methods
+ *        by implementing hook_versioncontrol_authorization_methods().
+ *   - 'url_backend': The prefix (excluding the trailing underscore)
+ *        for URL backend retrieval functions.
+ *   - '[xxx]_specific': An array of VCS specific additional repository
+ *        information. How this array looks like is defined by the
+ *        corresponding backend module (versioncontrol_[xxx]).
+ */
+function versioncontrol_fakevcs_repository($op, $repository) {
+  if ($op == 'delete') {
+    db_query('DELETE FROM {versioncontrol_fakevcs_repository_ponies}
+              WHERE repo_id = %d', $repository['repo_id']);
+  }
+}
+
+
+/**
+ * Implementation of [vcs_backend]_import_accounts():
+ * Import accounts into a repository, given text data from the accounts file.
+ * No accounts are deleted, new accounts are inserted, and existing accounts
+ * are updated with imported ones.
+ *
+ * This function is optional for backend modules to implement. If it's not
+ * implemented, the user will simply not be offered import functionality.
+ *
+ * @param $repository
+ *   The repository where the accounts will be imported.
+ * @param $data
+ *   The contents of the "account data" text area where the user has to
+ *   enter/copy the contents of the version control system's accounts file.
+ */
+function versioncontrol_fakevcs_import_accounts($repository, $data) {
+  $accounts = versioncontrol_fakevcs_parse_account_data($repository, $data);
+
+  foreach ($accounts as $account) {
+    $additional_data = array(
+      'fakevcs_specific' => array('password' => $password),
+    );
+    $username = $account['username'];
+    $uid = versioncontrol_get_account_uid_for_username($repository['repo_id'], $username, TRUE);
+
+    if (isset($uid)) {
+      versioncontrol_update_account($repository, $uid, $username, $additional_data);
+      $names[] = t('updated !username', array('!username' => $username));
+    }
+    else {
+      $uid = db_result(db_query("SELECT uid FROM {users} WHERE name = '%s'", $username));
+      if ($uid) {
+        versioncontrol_insert_account($repository, $uid, $username, $additional_data);
+        $names[] = t('added !username', array('!username' => $username));
+      }
+      else {
+        $names[] = t('didn\'t add !username (no matching Drupal username exists)',
+                      array('!username' => $username));
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of [vcs_backend]_export_accounts():
+ * Export accounts of a repository to text data that is suitable for
+ * copying to the version control system's accounts file.
+ *
+ * This function is optional for backend modules to implement. If it's not
+ * implemented, the user will simply not be offered export functionality.
+ *
+ * @param $repository
+ *   The repository whose accounts will be exported.
+ * @param $accounts
+ *   The list (array) of accounts that should be exported, given in the same
+ *   format as the return value of versioncontrol_get_accounts().
+ *   All accounts in this list are from the above repository.
+ *
+ * @return
+ *   The exported textual representation of the account list.
+ */
+function versioncontrol_fakevcs_export_accounts($repository, $accounts) {
+  if (empty($accounts)) {
+    return '# '. t('no user accounts available to export');
+  }
+  $accounts_flat = array();
+  $uid_constraints = array();
+  $params = array($repository['repo_id']);
+
+  foreach ($accounts as $uid => $usernames_per_repository) {
+    foreach ($usernames_per_repository as $repo_id => $username) {
+      $accounts_flat[$uid] = array('uid' => $uid, 'username' => $username);
+      $uid_constraints[] = 'uid = %d';
+      $params[] = $uid;
+    }
+  }
+
+  $result = db_query('SELECT uid, password FROM {versioncontrol_fakevcs_accounts}
+                      WHERE repo_id = %d
+                       AND ('. implode(' OR ', $uid_constraints) .')',
+                      $params);
+  while ($account = db_fetch_object($result)) {
+    $accounts_flat[$account->uid]['password'] = $account->password;
+  }
+
+  $data = '';
+  foreach ($accounts_flat as $uid => $account) {
+    $data .= '# '. url('user/'. $uid, NULL, NULL, TRUE) ."\n";
+    $data .= $account['username'] .':'. $account['password'] ."\n";
+  }
+  return $data;
+}

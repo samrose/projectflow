@@ -1,0 +1,6 @@
+; $Id: image_gallery.info,v 1.4 2007/07/18 17:04:31 drewish Exp $
+name = Image Gallery
+description = Allows sorting and displaying of image galleries based on categories.
+package = Image
+dependencies = image taxonomy
+

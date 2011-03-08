@@ -1,0 +1,6 @@
+; $Id: views_rss.info,v 1.3.2.3 2007/01/19 00:22:46 merlinofchaos Exp $
+name = Views RSS
+description = RSS plugin for the views feed selector argument.
+version = "$Name: DRUPAL-5--1-6-BETA5 $"
+package = Views
+dependencies = views

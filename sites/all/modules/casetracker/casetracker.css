@@ -1,0 +1,73 @@
+
+/* case state colors. we only define colors based on the "status" type      */
+/* but every case state, user-defined or not, gets a CSS class for its row. */
+#casetracker-cases-overview .status-open {
+  /* whatever the table tells us is the default color */
+}
+
+#casetracker-cases-overview .status-closed {
+ background-color:  #ffc0c0;
+}
+
+#casetracker-cases-overview .status-closed .active {
+ background-color:  #eeb9b9;
+}
+
+#casetracker-cases-overview .status-needs-review {
+  background-color: #ffffdd;
+}
+
+#casetracker-cases-overview .status-needs-review .active {
+  background-color: #eeeedd;
+}
+
+#case-filter-criteria {
+  margin-bottom:    5px;
+}
+
+#case-filter-criteria .case-filter-title {
+  font-weight:      bold;
+}
+
+/* stolen from project_issue.css. makes the options inline. */
+#project-information fieldset .form-item,
+#case-information fieldset .form-item {
+  float:            left;
+  padding-right:    0.8em;
+  margin:           0.05em 0.1em;
+}
+
+#case-information fieldset:after {
+  content:          ".";
+  clear:            both;
+  display:          block;
+  height:           0;
+  visibility:       hidden;
+}
+
+/* allows the case title to escape the inlining on comments. */
+#case-information fieldset #comment-case-title .form-item {
+  float:            none;
+  clear:            right;
+}
+
+/* for our block, we need to hide the "Case number" label (which has to be  */
+/* there if we want a useful "[field] is required" error message). however, */
+/* this attribute selector doesn't work in IE6. Tough patooka's, eh?        */
+#casetracker-block-jump-to-case-number label[for="edit-case-number"] {
+  display:          none;
+}
+
+
+/** DASHBOARD **/
+#casetracker-dashboard .project {
+	font-weight: bold;
+	border-right: 1px solid #cccccc;
+}
+#casetracker-dashboard .devider,
+#casetracker-dashboard .percent {
+	border-left: 1px solid #cccccc;
+}
+#casetracker-dashboard .percent {
+	font-weight: bold;
+}

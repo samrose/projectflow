@@ -1,0 +1,5 @@
+; $Id: notifications_mail2web.info,v 1.1.2.1 2008/04/30 10:04:16 jareyero Exp $
+name = Mail to Web
+description = Gateway module for responding to posts via mail
+package = "Notifications"
+dependencies = notifications mailhandler

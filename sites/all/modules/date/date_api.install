@@ -1,0 +1,129 @@
+<?php
+// $Id: date_api.install,v 1.5.2.12 2008/05/08 14:41:02 karens Exp $
+// Updates happen in random order, whether or not the module is enabled,
+// so include critical code here just to be sure.
+include_once('./'. drupal_get_path('module', 'date_api') .'/date_api.module');
+
+/**
+ * Set absolute minimum and maximum year for dates on this site.
+ *
+ * There is actually no maximum and minimum year in PHP 5, but a date with
+ * a year less than 0 would result in negative ISO and DATETIME dates,
+ * like -1250-01-01T00:00:00, which probably won't make sense or work
+ * correctly anywhere.
+ */
+variable_set('date_max_year', 4000);
+variable_set('date_min_year', 1);
+variable_set('date_php_min_year', 1901);
+
+/**
+ * Set an API version in a way that other modules can test for compatibility.
+ */
+variable_set('date_api_version', '5.2');
+
+/**
+ * NULL is used for the default setting of date_default_timezone_name
+ * to have a way to tell that no site timezone name has been implemented.
+ * Otherwise, many functions would use 'UTC' incorrectly and
+ * produce unreliable and odd results. This way functions can test for a
+ * value and not use this if it is empty.
+ */
+variable_get('date_default_timezone_name', NULL);
+
+/**
+ * Implementation of hook_install().
+ */
+function date_api_install() {
+ $ret = array();
+ $ret = db_query("ALTER TABLE {users} ADD timezone_name varchar(50) NOT NULL default ''");
+ return $ret;
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function date_api_uninstall() {
+  $ret = array();
+  $ret[] = db_query("ALTER TABLE {users} DROP timezone_name");
+
+  cache_clear_all('date_timezone_identifiers_list', 'cache');
+  $variables = array(
+    'date_api_version',
+    'date_min_year',
+    'date_max_year',
+    'date_php_min_year',
+    'date_db_tz_support',
+    );
+  foreach ($variables as $variable) {
+    variable_del($variable);
+  }
+  return $ret;
+}
+
+/**
+ * Implementation of hook_requirements().
+ * Make sure Date PHP4 is installed if running less than PHP 5.2.
+ */
+function date_api_requirements($phase) {
+  $requirements = array();
+  $t = get_t();
+  //switch ($phase) {
+ //   case 'runtime':
+      $tz_name = variable_get('date_default_timezone_name', NULL);
+      $error = FALSE;
+      if (version_compare(PHP_VERSION, '5.2', '<') && !module_exists('date_php4')) {
+        $error = TRUE;
+        $severity = REQUIREMENT_ERROR;
+        $value = $t('The Date API module requires the !link for PHP versions less than 5.2.', array('!link' => l($t('Date PHP4 module'), 'admin/build/modules')));
+      }
+      if ($error) {
+        $requirements['date_php4'] = array(
+          'title' => $t('Date API requirements'),
+          'value' => $value,
+          'severity' => $severity,
+          );
+      }
+  //    break;
+  //   case 'install':
+  //    break;
+  //}
+  return $requirements;
+}
+
+
+/**
+ * Implementation of hook_update().
+ */
+function date_api_update_5000() {
+  $ret = array();
+  $ret[] = update_sql("ALTER TABLE {users} ADD timezone_name varchar(50) NOT NULL default ''");
+  return $ret;
+}
+
+/**
+ * Make sure all the appropriate modules get enabled.
+ */
+function date_api_update_5200() {
+  $ret = array();
+  include_once('./includes/install.inc');
+  $module_list = array();
+  // When upgrading from previous versions that had no Date Timezone module
+  // some previously-enabled modules that depend on it get turned off, so enable them here.
+  $result = db_query("SELECT name FROM {system} WHERE status = 1 AND name IN ('date', 'date_copy', 'calendar', 'calendar_ical')");
+  while ($row = db_fetch_object($result)) {
+    $module_list[] = $row->name;
+  }
+  if (!empty($module_list)) {
+    $module_list = array_merge(array('date_timezone'), $module_list);
+  }
+  if (!function_exists('date_create')) {
+    $module_list[] = 'date_php4';
+  }
+  if (module_exists('jscalendar')) {
+    $module_list[] = 'date_popup';
+  }
+  drupal_install_modules($module_list);
+  module_rebuild_cache();
+  $ret[] = array('success' => TRUE, 'query' => implode(', ', $module_list));
+  return $ret;
+}

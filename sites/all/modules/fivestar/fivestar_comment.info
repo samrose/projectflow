@@ -1,0 +1,5 @@
+; $Id: fivestar_comment.info,v 1.1.4.2 2008/06/30 03:40:18 quicksketch Exp $
+name = Fivestar Comments
+description = Rate nodes by leaving comments.
+dependencies = votingapi fivestar
+package = Voting

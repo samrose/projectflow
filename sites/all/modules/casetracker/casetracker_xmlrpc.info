@@ -1,0 +1,5 @@
+; $Id: casetracker_xmlrpc.info,v 1.1 2007/01/08 16:58:47 morbus Exp $
+name = CT XML-RPC
+package = Case Tracker
+dependencies = casetracker
+description = Enables Case Tracker cases to be created via XML-RPC.

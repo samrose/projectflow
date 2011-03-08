@@ -1,0 +1,12 @@
+<?php
+// $Id: casetracker_basic.install,v 1.2 2007/11/23 07:51:33 zero2one Exp $
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function casetracker_basic_uninstall() {
+  db_query("DELETE FROM {node} WHERE type = 'casetracker_basic_project'");
+  db_query("DELETE FROM {node} WHERE type = 'casetracker_basic_case'");
+  db_query("DELETE FROM {node_type} WHERE type = 'casetracker_basic_project'");
+  db_query("DELETE FROM {node_type} WHERE type = 'casetracker_basic_case'");
+}

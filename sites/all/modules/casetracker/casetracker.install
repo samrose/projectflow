@@ -1,0 +1,595 @@
+<?php
+// $Id: casetracker.install,v 1.33 2007/11/23 07:51:33 zero2one Exp $
+
+/**
+ * Implementation of hook_install().
+ *
+ * Database schema last updated 2007-11 by zero2one.
+ *
+ *   casetracker_case:
+ *     nid: corresponding node ID of this case item.
+ *     vid: corresponding revision ID of the node ID.
+ *     pid: the project ID this case has been assigned to.
+ *     case_number: the case number of this node (namespaced per projects).
+ *     assign_to: the user ID this case has been assigned to.
+ *     case_priority_id: the priority ID this case has been set to.
+ *     case_type_id: the type ID this case has been set to.
+ *     case_status_id: the status ID this case has been set to.
+ *
+ *   casetracker_case_states:
+ *     csid: the unique ID of this case state.
+ *     case_state_name: the name of this case state.
+ *     case_state_realm: the realm ('priority', etc.) of this state.
+ *     weight: the weight of an case (order for display purpose).
+ *
+ *   casetracker_comment_status:
+ *     cid: comment ID as defined by core comment table.
+ *     pid: the project ID (before or after) of this comment/case.
+ *     title: the case title (before or after) of this comment/case.
+ *     assign_to: the user ID (before or after) of this comment/case.
+ *     case_priority_id: the priority ID (before or after) of this comment/case.
+ *     case_type_id: the case ID (before or after) of this comment/case.
+ *     case_status_id: the status ID (before or after) of this comment/case.
+ *     state: if 0, this is data for "before" the comment; 1 is "after".
+ *
+ *   casetracker_project:
+ *     project_number: the case tracker-created project number of this project.
+ *     nid: the node ID to which this project corresponds to.
+ *     vid: the revision ID of the node ID this project corresponds to.
+ */
+function casetracker_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {casetracker_case} (
+        nid int(10) NOT NULL default '0',
+        vid int(10) NOT NULL default '0',
+        pid int(10) NOT NULL default '0',
+        case_number int(10) NOT NULL default '0',
+        assign_to int(10) NOT NULL default '0',
+        case_priority_id int(5) NOT NULL default '0',
+        case_type_id int(5) NOT NULL default '0',
+        case_status_id int(5) NOT NULL default '0',
+        PRIMARY KEY (vid),
+        KEY nid (nid),
+        KEY pid (pid)
+      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+
+      db_query("CREATE TABLE {casetracker_case_states} (
+        csid tinyint(3) NOT NULL auto_increment,
+        case_state_name varchar(255) NOT NULL,
+        case_state_realm varchar(255) NOT NULL,
+        weight tinyint(4) NOT NULL default '0',
+        PRIMARY KEY (csid),
+        KEY weight (weight)
+      ) /*!40100 DEFAULT CHARACTER SET UTF8 */");
+      
+      db_query("CREATE TABLE {casetracker_comment_status} (
+        cid int(10) NOT NULL default '0',
+        pid int(10) NOT NULL default '0',
+        title varchar(250) default NULL,
+        assign_to int(10) NOT NULL default '0',
+        case_priority_id int(10) NOT NULL default '0',
+        case_type_id int(10) NOT NULL default '0',
+        case_status_id int(10) NOT NULL default '0',
+        state int(10) NOT NULL default '0'
+      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+
+      db_query("CREATE TABLE {casetracker_project} (
+        project_number int(10) NOT NULL default '0',
+        nid int(10) NOT NULL default '0',
+        vid int(10) NOT NULL default '0',
+        UNIQUE KEY vid (vid)
+      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('1-High', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('2', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('3', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('4', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('5-Low', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Open', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Closed', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Resolved-Staging', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Resolved-Production', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Tested Staging', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Bug', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Feature Request', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Text Modification', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('General Task', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Suggestion', 'type')");
+      break;
+    
+      
+       
+    case 'pgsql':
+      db_query("CREATE TABLE {casetracker_case} (
+        nid INTEGER NOT NULL default '0',
+        vid INTEGER NOT NULL default '0',
+        pid INTEGER NOT NULL default '0',
+        case_number INTEGER NOT NULL default '0',
+        assign_to INTEGER NOT NULL default '0',
+        case_priority_id INTEGER NOT NULL default '0',
+        case_type_id INTEGER NOT NULL default '0',
+        case_status_id INTEGER NOT NULL default '0',
+        PRIMARY KEY (vid)
+      )");
+
+      db_query("CREATE TABLE {casetracker_case_states} (
+        csid SERIAL,
+        case_state_name VARCHAR(255) NOT NULL,
+        case_state_realm VARCHAR(255) NOT NULL,
+        weight numeric(4) NOT NULL default 0,
+        PRIMARY KEY (csid)
+      )");
+
+      db_query("CREATE TABLE {casetracker_comment_status} (
+        cid INTEGER NOT NULL default '0',
+        pid INTEGER NOT NULL default '0',
+        title VARCHAR(250) default NULL,
+        assign_to INTEGER NOT NULL default '0',
+        case_priority_id INTEGER NOT NULL default '0',
+        case_type_id INTEGER NOT NULL default '0',
+        case_status_id INTEGER NOT NULL default '0',
+        state INTEGER NOT NULL default '0'
+      )");
+
+      db_query("CREATE TABLE {casetracker_project} (
+        project_number INTEGER NOT NULL default '0',
+        nid INTEGER NOT NULL default '0',
+        vid INTEGER NOT NULL default '0',
+        UNIQUE (vid)
+      )");
+
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('1-High', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('2', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('3', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('4', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('5-Low', 'priority')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Open', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Closed', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Resolved-Staging', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Resolved-Production', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Tested Staging', 'status')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Bug', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Feature Request', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Text Modification', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('General Task', 'type')");
+      db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('Suggestion', 'type')");
+      break;
+  }
+}
+
+function casetracker_update_1() {
+  return _system_update_utf8(array('casetracker_case', 'casetracker_case_priority', 'casetracker_case_status', 'casetracker_case_type', 'casetracker_case_type', 'casetracker_project'));
+}
+
+function casetracker_update_2() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret = array();
+      $ret[] = update_sql("INSERT INTO {casetracker_case_priority} VALUES (1, '1-High')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_priority} VALUES (2, '2')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_priority} VALUES (3, '3-Normal')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_priority} VALUES (4, '4')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_priority} VALUES (5, '5-Low')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_status} VALUES (1, 'Open')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_status} VALUES (2, 'Closed')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_status} VALUES (3, 'Resolved-Staging')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_status} VALUES (4, 'Resolved-Production')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_status} VALUES (5, 'Tested Staging')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_status} VALUES (6, 'Resolved')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_type} VALUES (1, 'Bug')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_type} VALUES (2, 'Feature Request')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_type} VALUES (3, 'Text Modification')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_type} VALUES (4, 'General Task')");
+      $ret[] = update_sql("INSERT INTO {casetracker_case_type} VALUES (5, 'Suggestion')");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_3() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} ADD vid int(10) unsigned NOT NULL default '0'");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} ADD UNIQUE KEY vid (vid)");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} ADD KEY nid (nid)");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} ADD KEY p_id (p_id)");
+
+      $result = db_query('SELECT n.vid, n.nid FROM {node} n INNER JOIN {casetracker_project} p ON p.nid = n.nid');
+      while ($node = db_fetch_object($result)) { // add support for revisions of project node types.
+        db_query('UPDATE {casetracker_project} SET vid = %d WHERE nid = %d', $node->vid, $node->nid);
+      }
+
+      $ret[] = update_sql("ALTER TABLE {casetracker_project} DROP PRIMARY KEY");
+      $ret[] = update_sql("ALTER TABLE {casetracker_project} ADD PRIMARY KEY vid (vid)");
+      $ret[] = update_sql("ALTER TABLE {casetracker_project} ADD KEY nid (nid)");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_4() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("CREATE TABLE {casetracker_comment} (
+                 cid int(10) NOT NULL default '0',
+                 sid int(10) NOT NULL auto_increment,
+                 PRIMARY KEY (sid)
+               ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+
+      $ret[] = update_sql("CREATE TABLE {casetracker_comment_status} (
+                 sid int(10) NOT NULL default '0',
+                 project_term_id int(10) NOT NULL default '0',
+                 assign_to int(10) NOT NULL default '0',
+                 case_priority_id int(10) NOT NULL default '0',
+                 case_type_id int(10) NOT NULL default '0',
+                 case_status_id int(10) NOT NULL default '0',
+                 state int(10) NOT NULL default '0'
+               ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+
+      $ret[] = update_sql("DROP TABLE IF EXISTS {casetracker_comments}");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_5() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_project} ADD project_no int(10) NOT NULL default '0'");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_6() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("CREATE TABLE {dewlist_user} (
+                 uid int(10) NOT NULL default '0',
+                 duid int(10) NOT NULL default '0'
+               ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_7() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("RENAME TABLE {dewlist_user} TO {casetracker_external_user}");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_8() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_comment_status} ADD title varchar(250) NULL AFTER project_term_id");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_9() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} DROP PRIMARY KEY ");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} DROP INDEX vid, ADD PRIMARY KEY (vid)");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_10() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $results = db_query("SELECT nid FROM {node} WHERE type = '%s'", 'casetracker_case');
+
+      while ($result = db_fetch_array($results)) { // create case IDs for each casetracker case node.
+        $scase_id = db_result(db_query("SELECT min(case_id) FROM {casetracker_case} WHERE nid = %d", $result['nid']));
+        $ret[] = db_query("UPDATE {casetracker_case} SET case_id = %d where nid = %d", $scase_id, $result['nid']);
+      }
+
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_11() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("CREATE TABLE {casetracker_mail} (
+                 msg_id varchar(255) NOT NULL,
+                 nid int(11) NOT NULL,
+                 cid int(11) NOT NULL,
+                 PRIMARY KEY (msg_id)
+               ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_12() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("CREATE TABLE {casetracker_case_states} (
+                 csid tinyint(3) NOT NULL auto_increment,
+                 case_state_name varchar(255) NOT NULL,
+                 case_state_realm varchar(255) NOT NULL,
+                 PRIMARY KEY (csid)
+               ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_13() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $result = db_query('SELECT * FROM {casetracker_case_priority}');
+      while ($priority = db_fetch_object($result)) {
+        db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('%s', '%s')", $priority->case_priority, 'priority');
+        $new_id = _casetracker_update_db_next_id(); // get the MySQL ID created by the previous insert.
+        db_query('UPDATE {casetracker_case} SET case_priority_id = %d WHERE case_priority_id = %d', $new_id, $priority->case_priority_id);
+        db_query('UPDATE {casetracker_comment_status} SET case_priority_id = %d WHERE case_priority_id = %d', $new_id, $priority->case_priority_id);
+      } db_query('DROP TABLE {casetracker_case_priority}');
+
+      $result = db_query('SELECT * FROM {casetracker_case_status}');
+      while ($status = db_fetch_object($result)) {
+        db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('%s', '%s')", $status->case_status_name, 'status');
+        $new_id = _casetracker_update_db_next_id(); // get the MySQL ID created by the previous insert.
+        db_query('UPDATE {casetracker_case} SET case_status_id = %d WHERE case_status_id = %d', $new_id, $status->case_status_id);
+        db_query('UPDATE {casetracker_comment_status} SET case_status_id = %d WHERE case_status_id = %d', $new_id, $status->case_status_id);
+      } db_query('DROP TABLE {casetracker_case_status}');
+
+      $result = db_query('SELECT * FROM {casetracker_case_type}');
+      while ($type = db_fetch_object($result)) {
+        db_query("INSERT INTO {casetracker_case_states} (case_state_name, case_state_realm) VALUES ('%s', '%s')", $type->case_type, 'type');
+        $new_id = _casetracker_update_db_next_id(); // get the MySQL ID created by the previous insert.
+        db_query('UPDATE {casetracker_case} SET case_type_id = %d WHERE case_type_id = %d', $new_id, $priority->case_type_id);
+        db_query('UPDATE {casetracker_comment_status} SET case_type_id = %d WHERE case_type_id = %d', $new_id, $type->case_type_id);
+      } db_query('DROP TABLE {casetracker_case_type}');
+      break;
+  }
+
+  return $ret;
+}
+
+function _casetracker_update_db_next_id() {
+  $new_id = NULL;
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':  $new_id = mysql_insert_id();  break;
+    case 'mysqli': $new_id = mysqli_insert_id(); break;
+  }
+
+  return $new_id;
+}
+
+function casetracker_update_14() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $count = db_num_rows(db_query("SELECT * FROM {node} WHERE type = 'casetracker_case'"));
+      if ($count >= 1) { // if there are existing casetracker_case nodes, we'll enable the _basic module.
+        drupal_set_message(t('Case Tracker has moved its default "case" node type into casetracker_basic.module. You will want to enable that module.'));
+      }
+
+      if (db_result(db_query("SELECT status FROM {system} WHERE name = 'mailhandler'"))) {
+        drupal_set_message(t('Case Tracker has moved Mailhandler support into casetracker_mail.module. You may need to enable that module.'));
+      }
+
+      if (db_result(db_query("SELECT status FROM {system} WHERE name = 'views'"))) {
+        drupal_set_message(t('Case Tracker has moved Views support into casetracker_views.module. You may need to enable that module.'));
+      }
+
+      drupal_set_message(t('Case Tracker has moved its XML-RPC and mail sending features into separate modules. You made need to enable those modules.'));
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_15() {
+  variable_del('project_xmlrpc');
+  variable_del('externalsite_xmlrpc_password');
+
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("DROP TABLE {casetracker_external_user}");
+      $ret[] = update_sql("ALTER TABLE {casetracker_project} DROP COLUMN tid");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_16() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("DELETE FROM {sequences} WHERE name = 'case_id'");
+      $ret[] = update_sql("DELETE FROM {sequences} WHERE name = 'project_no'");
+
+      db_query('LOCK TABLES {casetracker_project} WRITE');
+      $project_number = db_result(db_query_range("SELECT project_no FROM {casetracker_project} ORDER BY project_no DESC", 0, 1));
+      $project_number = $project_number ? $project_number : 100; // if there are no projects, we always start at 100.
+      variable_set('casetracker_current_project_number', $project_number);
+
+      db_query('LOCK TABLES {casetracker_case} WRITE');
+      // case numbers were supposed to be namespaced to the project, but that
+      // never actually happened, so we'll loop through all the projects and
+      // just start proper namespacing at whatever the last case number was.
+      $results = db_query("SELECT p_id, MAX(case_id) AS last_case_id FROM casetracker_case GROUP BY p_id");
+      $project_case_numbers = array(); while ($result = db_fetch_object($results)) {
+        $project_case_numbers[$result->p_id] = $result->last_case_id ? $result->last_case_id : 1;
+      } // i know, i know, serializing an array, but it's my cross to bare. cases always start at 1.
+      variable_set('casetracker_current_case_numbers', $project_case_numbers);
+
+      db_query('UNLOCK TABLES');
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_17() {
+  // if the user hasn't browsed to admin/modules before updating, casetracker_mail
+  // won't be found, so we'll have to fake it's existence in the system table first.
+  db_query("INSERT INTO {system} SET filename = '%s', name = 'casetracker_mail', type = 'module'",
+    drupal_get_path('module', 'casetracker') .'/casetracker_mail.module'); // thanks killes.
+
+  include_once drupal_get_path('module', 'casetracker_mail') .'/casetracker_mail.module';
+  variable_set('casetracker_mail_address', variable_get('casetracker_mailbox', variable_get('site_mail', ini_get('sendmail_from'))));
+  variable_set('casetracker_mail_subject', variable_get('casetracker_notification_email_subject', _casetracker_mail_subject()));
+  variable_set('casetracker_mail_case_message', variable_get('casetracker_notification_email_case_message', _casetracker_mail_case_message()));
+  variable_set('casetracker_mail_comment_message', variable_get('casetracker_notification_email_comment_message', _casetracker_mail_comment_message()));
+
+  variable_del('casetracker_mailbox');
+  variable_del('casetracker_notification_email_subject');
+  variable_del('casetracker_notification_email_case_message');
+  variable_del('casetracker_notification_email_comment_message');
+}
+
+function casetracker_update_18() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} CHANGE COLUMN p_id pid int(10) NOT NULL default '0'");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} CHANGE COLUMN case_id case_number int(10) NOT NULL default '0'");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case} DROP COLUMN case_sender_uid");
+      $ret[] = update_sql("ALTER TABLE {casetracker_comment_status} CHANGE COLUMN project_term_id pid int(10) NOT NULL default '0'");
+      $ret[] = update_sql("ALTER TABLE {casetracker_project} CHANGE COLUMN project_no project_number int(10) NOT NULL default '0'");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_19() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_comment_status} ADD cid int(10) NOT NULL default '0' AFTER sid");
+      $results = db_query('SELECT cid, sid FROM {casetracker_comment}'); // merge 'em all into one table now.
+      while ($result = db_fetch_object($results)) { // the casetracker_comment table was unnecessary abstraction.
+        db_query('UPDATE {casetracker_comment_status} SET cid = %d WHERE sid = %d', $result->cid, $result->sid);
+      } $ret[] = update_sql('DROP TABLE {casetracker_comment}'); // buh-bye. @todo insert bug here somewhere.
+      $ret[] = update_sql('ALTER TABLE {casetracker_comment_status} DROP COLUMN sid');
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_20() {
+  $ret = array();
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("UPDATE {node} SET type = 'casetracker_basic_project' WHERE type = 'casetracker_project'");
+      $ret[] = update_sql("UPDATE {node} SET type = 'casetracker_basic_case' WHERE type = 'casetracker_case'");
+      break;
+  }
+
+  return $ret;
+}
+
+function casetracker_update_21() {
+  $ret = array();
+drupal_set_message('test before switch');
+drupal_set_message($GLOBALS['db_type']);
+
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {casetracker_case_states} ADD `weight` TINYINT(4) NOT NULL DEFAULT '0'");
+      $ret[] = update_sql("ALTER TABLE {casetracker_case_states} ADD INDEX (`weight`)");
+
+drupal_set_message('test in switch');
+
+      break;
+  }
+  
+  return $ret;
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function casetracker_uninstall() {
+  db_query('DROP TABLE {casetracker_case}');
+  db_query('DROP TABLE {casetracker_case_states}');
+  db_query('DROP TABLE {casetracker_comment_status}');
+  db_query('DROP TABLE {casetracker_project}');
+  variable_del('casetracker_default_assign_to');
+  variable_del('casetracker_default_case_priority');
+  variable_del('casetracker_default_case_state');
+  variable_del('casetracker_default_case_type');
+  variable_del('casetracker_project_node_types');
+  variable_del('casetracker_case_node_types');
+  variable_del('casetracker_current_case_numbers');
+  variable_del('casetracker_current_project_number');
+}

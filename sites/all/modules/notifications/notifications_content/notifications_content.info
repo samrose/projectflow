@@ -1,0 +1,5 @@
+; $Id: notifications_content.info,v 1.1 2008/01/21 22:29:37 jareyero Exp $
+name = Content Notifications
+description = Allows users to subscribe to content related events.
+package = "Notifications"
+dependencies = notifications
